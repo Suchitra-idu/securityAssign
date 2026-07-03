@@ -1,0 +1,78 @@
+site_name: Secure Banking Application
+site_description: A secure banking application demonstrating real security controls at algorithm, protocol, and system level
+repo_url: https://github.com/yourusername/securityassign
+repo_name: securityassign
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  features:
+    - navigation.indexes
+    - navigation.sections
+    - navigation.tabs
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - toc.follow
+  palette:
+    - scheme: default
+      primary: blue
+      accent: blue
+
+plugins:
+  - search
+
+markdown_extensions:
+  - pymdownx.highlight:
+      use_pygments: true
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - toc:
+      permalink: true
+  - tables
+  - codehilite
+
+nav:
+  - Home: index.md
+  - Architecture:
+      - Overview: 01-architecture/overview.md
+      - Clean Architecture: 01-architecture/clean-architecture.md
+      - Contracts: 01-architecture/contracts.md
+      - Security Controls: 01-architecture/security-controls.md
+  - Shared Security:
+      - Overview: 02-shared-security/overview.md
+      - Passwords: 02-shared-security/passwords.md
+      - Tokens: 02-shared-security/tokens.md
+      - Field Encryption: 02-shared-security/field-crypto.md
+      - Transaction Signatures: 02-shared-security/transaction-signatures.md
+      - Canonical JSON: 02-shared-security/canonical-json.md
+      - Audit Chain: 02-shared-security/audit-chain.md
+  - Auth Service:
+      - Overview: 03-auth-service/overview.md
+      - Domain Layer: 03-auth-service/domain-layer.md
+      - Application Layer: 03-auth-service/application-layer.md
+      - Infrastructure Layer: 03-auth-service/infrastructure-layer.md
+      - Register Flow: 03-auth-service/flow-register.md
+      - Login Flow: 03-auth-service/flow-login.md
+      - Refresh Flow: 03-auth-service/flow-refresh.md
+      - Public Key Flow: 03-auth-service/flow-public-key.md
+      - Input Validation: 03-auth-service/input-validation.md
+      - Audit Log Durability: 03-auth-service/audit-log-durability.md
+  - Deployment:
+      - Running Locally: 04-deployment/running-locally.md
+      - Docker Image: 04-deployment/docker-image.md
+      - Database Schema: 04-deployment/database-schema.md
+      - Environment Variables: 04-deployment/env-vars.md
+  - Testing:
+      - Strategy: 05-testing/strategy.md
+      - What Tests Prove: 05-testing/what-tests-prove.md
+      - Running Tests: 05-testing/running-tests.md
+
+extra:
+  version: 1.0
