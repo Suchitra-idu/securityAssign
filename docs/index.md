@@ -1,6 +1,6 @@
 # Documentation
 
-Reference documentation for the secure banking application. Covers **only what is currently implemented**. Anything the assignment plans but has not been built (banking service, Caddy/Coraza WAF, fail2ban, encrypted backup, mTLS) is not documented here — see [../DEV_GUIDE.md](../DEV_GUIDE.md) for the intended shape and [../flags.md](../flags.md) for pending items.
+Reference documentation for the secure banking application. Covers **only what is currently implemented**. Anything the assignment plans but has not been built (banking service, Caddy/Coraza WAF, fail2ban, encrypted backup, mTLS) is not documented here — see {{ src("DEV_GUIDE.md", text="../DEV_GUIDE.md") }} for the intended shape and {{ src("flags.md", text="../flags.md") }} for pending items.
 
 ## What is currently implemented
 
@@ -60,6 +60,6 @@ If you have never seen this repo before, read in this order:
 
 ## Conventions used in these docs
 
-- **Clickable code pointers.** Every claim about behaviour links to the file that implements it, often at a line range: `[tokens.py:23-30](../shared_security/src/shared_security/tokens.py#L23-L30)`. If a doc says something the code no longer does, believe the code and file a fix in [flags.md](../flags.md).
+- **Clickable code pointers.** Every claim about behaviour links to the file that implements it, often at a line range: `{{ src("shared_security/src/shared_security/tokens.py", lines="23-30") }}`. If a doc says something the code no longer does, believe the code and file a fix in {{ src("flags.md") }}.
 - **Threat model per primitive.** Each primitive doc has a "What this defends against" and a "What this does not defend against" section. Both matter — the omissions are as informative as the coverage.
 - **Rationale over description.** Design choices (bcrypt vs Argon2id, opaque vs JWT refresh tokens, two DB connections per request) come with the *why*, because someone reading this in six months will need to know whether to preserve the choice or change it.

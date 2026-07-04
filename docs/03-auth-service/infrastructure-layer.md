@@ -2,11 +2,11 @@
 
 FastAPI, Postgres, config. Where the outside world is bolted onto the pure inner layers.
 
-Location: [auth_service/src/auth_service/infrastructure/](../../auth_service/src/auth_service/infrastructure/).
+Location: {{ src("auth_service/src/auth_service/infrastructure/", text="auth_service/src/auth_service/infrastructure/") }}.
 
 ## Config: `config.py`
 
-[config.py](../../auth_service/src/auth_service/infrastructure/config.py):
+{{ src("auth_service/src/auth_service/infrastructure/config.py") }}:
 
 ```python
 class Config(BaseSettings):
@@ -23,13 +23,13 @@ class Config(BaseSettings):
     def tokens(self) -> TokenSettings: ...
 ```
 
-Sourced from `pydantic-settings`. Every field maps to an env var — see [../04-deployment/env-vars.md](../04-deployment/env-vars.md).
+Sourced from `pydantic-settings`. Every field maps to an env var — see {{ src("04-deployment/env-vars.md", text="../04-deployment/env-vars.md") }}.
 
 `Config.tokens()` builds the application-layer `TokenSettings` from the underlying fields. This is the single conversion point between "env-driven infra config" and "domain-friendly settings".
 
 ## Clock: `clock.py`
 
-[clock.py](../../auth_service/src/auth_service/infrastructure/clock.py):
+{{ src("auth_service/src/auth_service/infrastructure/clock.py") }}:
 
 ```python
 class SystemClock:
@@ -41,15 +41,15 @@ Trivial, but important that it exists as a separate class so tests can substitut
 
 ## Database wiring: `db.py` + `schema.sql`
 
-[db.py](../../auth_service/src/auth_service/infrastructure/db.py):
+{{ src("auth_service/src/auth_service/infrastructure/db.py") }}:
 
 ```python
 def build_pool(database_url, *, min_size, max_size) -> ConnectionPool
 def apply_schema(pool) -> None
 ```
 
-- **Pool** — psycopg3 sync `ConnectionPool`. Sync mode chosen because the application layer is sync and FastAPI runs sync handlers in a thread pool automatically. Async would leak up into the use cases and buy nothing at the traffic level this service will see. See [../04-deployment/env-vars.md](../04-deployment/env-vars.md) for `AUTH_POOL_MIN_SIZE` / `AUTH_POOL_MAX_SIZE`.
-- **Schema application** — reads `schema.sql` from package resources and executes it. Idempotent (uses `CREATE TABLE IF NOT EXISTS`). Runs once at startup inside `create_app` if a Postgres factory is being built. See [../04-deployment/database-schema.md](../04-deployment/database-schema.md) for the DDL.
+- **Pool** — psycopg3 sync `ConnectionPool`. Sync mode chosen because the application layer is sync and FastAPI runs sync handlers in a thread pool automatically. Async would leak up into the use cases and buy nothing at the traffic level this service will see. See {{ src("04-deployment/env-vars.md", text="../04-deployment/env-vars.md") }} for `AUTH_POOL_MIN_SIZE` / `AUTH_POOL_MAX_SIZE`.
+- **Schema application** — reads `schema.sql` from package resources and executes it. Idempotent (uses `CREATE TABLE IF NOT EXISTS`). Runs once at startup inside `create_app` if a Postgres factory is being built. See {{ src("04-deployment/database-schema.md", text="../04-deployment/database-schema.md") }} for the DDL.
 
 ## Repositories
 
@@ -57,13 +57,13 @@ Each repo takes a `Connection` (not a pool). The FastAPI dependency generator pi
 
 ### `users_repo.py`
 
-[PostgresUserRepository](../../auth_service/src/auth_service/infrastructure/repositories/users_repo.py) implements `UserRepository`. Three methods, each one SQL statement.
+{{ src("auth_service/src/auth_service/infrastructure/repositories/users_repo.py", text="PostgresUserRepository") }} implements `UserRepository`. Three methods, each one SQL statement.
 
 Notable: `add()` catches `psycopg.errors.UniqueViolation` on the `users_username_key` constraint and re-raises `UsernameTaken`. This is the infrastructure-to-domain error translation for the check-then-insert race in `register` (see [application-layer.md](application-layer.md#register)).
 
 ### `refresh_repo.py`
 
-[PostgresRefreshTokenStore](../../auth_service/src/auth_service/infrastructure/repositories/refresh_repo.py) implements `RefreshTokenStore`. Three methods:
+{{ src("auth_service/src/auth_service/infrastructure/repositories/refresh_repo.py", text="PostgresRefreshTokenStore") }} implements `RefreshTokenStore`. Three methods:
 
 - `add(record)` — INSERT with the SHA-256 hex of the raw refresh token, user id, expiry.
 - `get(token_hash)` — lookup by hash.
@@ -71,7 +71,7 @@ Notable: `add()` catches `psycopg.errors.UniqueViolation` on the `users_username
 
 ## Hash-chained audit sink: `audit_log.py`
 
-[PostgresAuditLog](../../auth_service/src/auth_service/infrastructure/audit_log.py) implements `AuditLog`. One method:
+{{ src("auth_service/src/auth_service/infrastructure/audit_log.py", text="PostgresAuditLog") }} implements `AuditLog`. One method:
 
 ```python
 def record(self, event: dict) -> None:
@@ -95,11 +95,11 @@ Two subtle things here — both covered in depth in [audit-log-durability.md](au
 
 ## Pydantic schemas: `schemas.py`
 
-[schemas.py](../../auth_service/src/auth_service/infrastructure/schemas.py) declares the request and response models. Every model uses `extra="forbid"` — unknown fields are rejected with 422 rather than silently ignored. That is what prevents a client from smuggling `{"role": "admin"}` into `/register`. Full rules: [input-validation.md](input-validation.md).
+{{ src("auth_service/src/auth_service/infrastructure/schemas.py") }} declares the request and response models. Every model uses `extra="forbid"` — unknown fields are rejected with 422 rather than silently ignored. That is what prevents a client from smuggling `{"role": "admin"}` into `/register`. Full rules: [input-validation.md](input-validation.md).
 
 ## FastAPI app factory: `app.py`
 
-[app.py](../../auth_service/src/auth_service/infrastructure/app.py):
+{{ src("auth_service/src/auth_service/infrastructure/app.py") }}:
 
 ```python
 def create_app(config: Config, deps_factory: DepsFactory | None = None) -> FastAPI:
@@ -122,11 +122,11 @@ def deps_factory() -> Iterator[AuthDeps]:
             )
 ```
 
-Tests inject a fake factory that yields fake ports — that is how [test_integration.py](../../auth_service/tests/test_integration.py) exercises the full FastAPI stack without Postgres.
+Tests inject a fake factory that yields fake ports — that is how {{ src("auth_service/tests/test_integration.py") }} exercises the full FastAPI stack without Postgres.
 
 ## Entry point: `main.py`
 
-[main.py](../../auth_service/src/auth_service/infrastructure/main.py):
+{{ src("auth_service/src/auth_service/infrastructure/main.py") }}:
 
 ```python
 from auth_service.infrastructure.app import create_app
@@ -139,14 +139,14 @@ Runs as `uvicorn auth_service.infrastructure.main:app`. The `Config()` call load
 
 ## Logging
 
-Logger name `auth` at module level in [app.py](../../auth_service/src/auth_service/infrastructure/app.py). Log lines use a stable prefix so fail2ban can grep them later:
+Logger name `auth` at module level in {{ src("auth_service/src/auth_service/infrastructure/app.py") }}. Log lines use a stable prefix so fail2ban can grep them later:
 
 - `LOGIN_FAILED username=%s`
 - `LOGIN_SUCCESS username=%s`
 - `REFRESH_FAILED`
 - `REGISTER user_id=%s username=%s`
 
-fail2ban config not shipped yet — [flag 3](../../flags.md).
+fail2ban config not shipped yet — {{ src("flags.md", text="flag 3") }}.
 
 ## Import discipline
 

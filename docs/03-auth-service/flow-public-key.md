@@ -27,7 +27,7 @@ Content-Type: application/json
 
 ## Code path
 
-Route: [public_key_route in app.py](../../auth_service/src/auth_service/infrastructure/app.py):
+Route: {{ src("auth_service/src/auth_service/infrastructure/app.py", text="public_key_route in app.py") }}:
 
 ```python
 @app.get("/public-key", response_model=PublicKeyResponse)
@@ -35,7 +35,7 @@ def public_key_route() -> PublicKeyResponse:
     return PublicKeyResponse(public_key=config.signing_public_key_pem)
 ```
 
-Key source: `AUTH_SIGNING_PUBLIC_KEY_PEM` env var, loaded via [Config](../../auth_service/src/auth_service/infrastructure/config.py).
+Key source: `AUTH_SIGNING_PUBLIC_KEY_PEM` env var, loaded via {{ src("auth_service/src/auth_service/infrastructure/config.py", text="Config") }}.
 
 ## Verifier flow (banking, when built)
 
@@ -63,7 +63,7 @@ per request:
 ## Non-caching, non-rotation
 
 - Auth does not currently offer a `kid`, `iss`, or issue timestamp for the key. A single "current" key at a time.
-- Rotation is not implemented — see [flag 8](../../flags.md). If it were, this endpoint would return the new key and verifiers would need a strategy: refetch on 401, TTL the cache, or listen for a version signal.
+- Rotation is not implemented — see {{ src("flags.md", text="flag 8") }}. If it were, this endpoint would return the new key and verifiers would need a strategy: refetch on 401, TTL the cache, or listen for a version signal.
 - The banking service will need to cache the key at startup and refetch it if a verify unexpectedly fails — the exact policy is a banking-side decision, not enforced by auth.
 
 ## Failure modes
@@ -77,4 +77,4 @@ The route has no authentication and no rate-limiting on its own. Rate limiting i
 
 ## Tests
 
-- Integration: `test_public_key_endpoint_returns_pem` in [test_integration.py](../../auth_service/tests/test_integration.py) — asserts the returned PEM equals the configured public key and the algorithm is `EdDSA`.
+- Integration: `test_public_key_endpoint_returns_pem` in {{ src("auth_service/tests/test_integration.py") }} — asserts the returned PEM equals the configured public key and the algorithm is `EdDSA`.

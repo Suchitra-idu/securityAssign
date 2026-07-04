@@ -14,7 +14,7 @@ def sign_token(claims: dict, private_key: str) -> str  # returns compact JWT
 def verify_token(token: str, public_key: str) -> dict  # raises TokenError on any failure
 ```
 
-Implementation: [tokens.py](../../shared_security/src/shared_security/tokens.py).
+Implementation: {{ src("shared_security/src/shared_security/tokens.py") }}.
 
 ## Why Ed25519 (EdDSA)
 
@@ -45,7 +45,7 @@ def sign_token(claims: dict, private_key: str) -> str:
 
 Uses PyJWT with the algorithm pinned. The resulting compact JWT is three base64url segments: `header.payload.signature`. Header always looks like `{"alg":"EdDSA","typ":"JWT"}`.
 
-Callers are responsible for the claim shape. See [../01-architecture/contracts.md#contract-2-token-payload](../01-architecture/contracts.md#contract-2-token-payload) for the auth-service payload.
+Callers are responsible for the claim shape. See {{ src("01-architecture/contracts.md", text="../01-architecture/contracts.md#contract-2-token-payload", anchor="contract-2-token-payload") }} for the auth-service payload.
 
 ## Verification
 
@@ -78,7 +78,7 @@ If `algorithms=` were omitted or set to a list including HS256, an attacker coul
 2. Forge a token with `alg: HS256`, signed using the public key **as an HMAC secret**.
 3. Present it to `verify_token`. A naive verifier would see `alg: HS256`, look up the "key" as an HMAC secret, and successfully verify a forged token.
 
-Our verifier pins `algorithms=["EdDSA"]`, so an HS256 header is rejected regardless of the signature value. The test `test_algorithm_confusion_hs256_rejected` in [test_tokens.py](../../shared_security/tests/test_tokens.py) hand-crafts an HS256 forgery and asserts the verifier rejects it — the test explicitly hand-builds the JWT with base64+HMAC because modern PyJWT refuses to *encode* an HS256 token when the "secret" is a PEM asymmetric key, which would otherwise mask the vulnerability we are testing for.
+Our verifier pins `algorithms=["EdDSA"]`, so an HS256 header is rejected regardless of the signature value. The test `test_algorithm_confusion_hs256_rejected` in {{ src("shared_security/tests/test_tokens.py") }} hand-crafts an HS256 forgery and asserts the verifier rejects it — the test explicitly hand-builds the JWT with base64+HMAC because modern PyJWT refuses to *encode* an HS256 token when the "secret" is a PEM asymmetric key, which would otherwise mask the vulnerability we are testing for.
 
 ## What this defends against
 
@@ -90,20 +90,20 @@ Our verifier pins `algorithms=["EdDSA"]`, so an HS256 header is rejected regardl
 
 ## What this does *not* defend against
 
-- **Private-key theft.** The private key is the trust root. If it leaks, everything is forgeable until keys rotate. Rotation is not implemented ([flag 8](../../flags.md) covers key handling hardening).
+- **Private-key theft.** The private key is the trust root. If it leaks, everything is forgeable until keys rotate. Rotation is not implemented ({{ src("flags.md", text="flag 8") }} covers key handling hardening).
 - **Replay of a valid non-expired token.** Once a token is issued, anyone holding it can present it up to `exp`. TLS termination at the proxy is the defense in transit. There is no server-side revocation of access tokens — they are stateless.
-- **Refresh token theft.** Access tokens are stateless; refresh tokens are opaque and stored. Refresh-token theft is mitigated only by "rotation invalidates the old token" and short TTLs. Reuse-detection (stolen-token detection by seeing a rotated token used again) is not implemented — see [../03-auth-service/flow-refresh.md](../03-auth-service/flow-refresh.md).
+- **Refresh token theft.** Access tokens are stateless; refresh tokens are opaque and stored. Refresh-token theft is mitigated only by "rotation invalidates the old token" and short TTLs. Reuse-detection (stolen-token detection by seeing a rotated token used again) is not implemented — see {{ src("03-auth-service/flow-refresh.md", text="../03-auth-service/flow-refresh.md") }}.
 
 ## Configurable via TokenSettings
 
-The auth service wraps `sign_token` / `verify_token` in the `mint_token_pair` helper in [tokens.py](../../auth_service/src/auth_service/application/tokens.py). TTLs come from `TokenSettings` ([settings.py](../../auth_service/src/auth_service/application/settings.py)):
+The auth service wraps `sign_token` / `verify_token` in the `mint_token_pair` helper in {{ src("auth_service/src/auth_service/application/tokens.py") }}. TTLs come from `TokenSettings` ({{ src("auth_service/src/auth_service/application/settings.py") }}):
 
 - `access_ttl` — how long a signed token is valid, in seconds. Default 300 (5 minutes).
 - `refresh_ttl` — how long a refresh token is valid, in seconds. Default 86 400 (24 hours).
 
 ## Tests that pin this behaviour
 
-[test_tokens.py](../../shared_security/tests/test_tokens.py):
+{{ src("shared_security/tests/test_tokens.py") }}:
 
 - Round trip preserves `sub`, `role`, `exp`.
 - A token signed with an attacker's private key fails verification.

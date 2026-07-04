@@ -1,6 +1,6 @@
 # Clean architecture applied
 
-The auth service follows the **light clean architecture** described in [../../DEV_GUIDE.md](../../DEV_GUIDE.md) and [../../CLAUDE.md](../../CLAUDE.md). Three layers, dependencies pointing inward only. The shared_security module is intentionally flat — it is a library of primitives, not a service.
+The auth service follows the **light clean architecture** described in {{ src("DEV_GUIDE.md", text="../../DEV_GUIDE.md") }} and {{ src("CLAUDE.md", text="../../CLAUDE.md") }}. Three layers, dependencies pointing inward only. The shared_security module is intentionally flat — it is a library of primitives, not a service.
 
 ## The rule
 
@@ -31,7 +31,7 @@ The auth service follows the **light clean architecture** described in [../../DE
 
 ## What "points inward only" means concretely
 
-- The **domain layer** ([auth_service/src/auth_service/domain/](../../auth_service/src/auth_service/domain/)) imports from nothing except the standard library. Confirm this yourself:
+- The **domain layer** ({{ src("auth_service/src/auth_service/domain/", text="auth_service/src/auth_service/domain/") }}) imports from nothing except the standard library. Confirm this yourself:
   ```
   $ grep -R "^import\|^from" auth_service/src/auth_service/domain/
   domain/users.py:from dataclasses import dataclass
@@ -39,8 +39,8 @@ The auth service follows the **light clean architecture** described in [../../DE
   domain/refresh.py:from dataclasses import dataclass
   ```
   No FastAPI, no Postgres, no shared_security. Pure data + errors.
-- The **application layer** ([auth_service/src/auth_service/application/](../../auth_service/src/auth_service/application/)) imports from the domain layer and from shared_security. It does not import FastAPI or psycopg.
-- The **infrastructure layer** ([auth_service/src/auth_service/infrastructure/](../../auth_service/src/auth_service/infrastructure/)) imports from application and domain — never the reverse.
+- The **application layer** ({{ src("auth_service/src/auth_service/application/", text="auth_service/src/auth_service/application/") }}) imports from the domain layer and from shared_security. It does not import FastAPI or psycopg.
+- The **infrastructure layer** ({{ src("auth_service/src/auth_service/infrastructure/", text="auth_service/src/auth_service/infrastructure/") }}) imports from application and domain — never the reverse.
 
 ## Why "light" and not "strict"
 
@@ -50,7 +50,7 @@ Strict clean architecture wraps every external dependency in a formal port/adapt
 
 Where we did add ports:
 
-- [ports.py](../../auth_service/src/auth_service/application/ports.py) — `UserRepository`, `RefreshTokenStore`, `AuditLog`, `Clock`. These have real benefit: tests swap in fakes so use cases can be unit-tested without Postgres, and infrastructure swaps in the Postgres implementations at runtime. This is exactly the "swappable backend" case CLAUDE.md talks about.
+- {{ src("auth_service/src/auth_service/application/ports.py") }} — `UserRepository`, `RefreshTokenStore`, `AuditLog`, `Clock`. These have real benefit: tests swap in fakes so use cases can be unit-tested without Postgres, and infrastructure swaps in the Postgres implementations at runtime. This is exactly the "swappable backend" case CLAUDE.md talks about.
 
 Where we did **not** add ports:
 
@@ -64,11 +64,11 @@ Only from the application layer. The rule from CLAUDE.md:
 > Crypto is called from the application layer through a thin boundary so use cases stay unit-testable without real keys.
 
 Concretely:
-- [tokens.py](../../auth_service/src/auth_service/application/tokens.py) calls `shared_security.tokens.sign_token`.
-- [login.py](../../auth_service/src/auth_service/application/login.py) calls `shared_security.passwords.verify_password`.
-- [register.py](../../auth_service/src/auth_service/application/register.py) calls `shared_security.passwords.hash_password`.
+- {{ src("auth_service/src/auth_service/application/tokens.py") }} calls `shared_security.tokens.sign_token`.
+- {{ src("auth_service/src/auth_service/application/login.py") }} calls `shared_security.passwords.verify_password`.
+- {{ src("auth_service/src/auth_service/application/register.py") }} calls `shared_security.passwords.hash_password`.
 
-The domain layer does not touch crypto. The infrastructure layer does not touch crypto except through the `PostgresAuditLog` which uses `shared_security.audit_chain` to build the hash chain (that is application-adjacent — see [../03-auth-service/audit-log-durability.md](../03-auth-service/audit-log-durability.md) for the split-of-concerns argument).
+The domain layer does not touch crypto. The infrastructure layer does not touch crypto except through the `PostgresAuditLog` which uses `shared_security.audit_chain` to build the hash chain (that is application-adjacent — see {{ src("03-auth-service/audit-log-durability.md", text="../03-auth-service/audit-log-durability.md") }} for the split-of-concerns argument).
 
 ## The AuthDeps container
 
@@ -84,14 +84,14 @@ class AuthDeps:
     settings: TokenSettings
 ```
 
-Every use case takes `deps: AuthDeps` and pulls the fields it needs. This has one small downside — a use case that only needs `users` still receives everything else — but the ergonomic win at call sites is large. See [deps.py](../../auth_service/src/auth_service/application/deps.py).
+Every use case takes `deps: AuthDeps` and pulls the fields it needs. This has one small downside — a use case that only needs `users` still receives everything else — but the ergonomic win at call sites is large. See {{ src("auth_service/src/auth_service/application/deps.py") }}.
 
 ## Why the shared_security module is flat
 
-[../02-shared-security/overview.md](../02-shared-security/overview.md) covers this, but the summary: shared_security is a library of primitives, not a service. Each primitive is a small module (`passwords.py`, `tokens.py`, ...). Layering a library that has no application-level use cases and no delivery-mechanism concerns would be over-engineering. If a caller wants to build a service around these primitives, they impose their own layering (as auth_service does).
+{{ src("02-shared-security/overview.md", text="../02-shared-security/overview.md") }} covers this, but the summary: shared_security is a library of primitives, not a service. Each primitive is a small module (`passwords.py`, `tokens.py`, ...). Layering a library that has no application-level use cases and no delivery-mechanism concerns would be over-engineering. If a caller wants to build a service around these primitives, they impose their own layering (as auth_service does).
 
 ## What this buys us
 
-- **Use-case tests run in ~7 seconds** ([auth_service/tests/](../../auth_service/tests/)) with no database, no HTTP, no keys loaded from disk. Every one of the 23 pure-application tests instantiates fake ports directly.
-- **Integration tests run at TestClient speed** without a real Postgres because we override the deps factory. See [test_integration.py](../../auth_service/tests/test_integration.py).
-- **The application layer is a printed spec.** A reader who wants to know exactly what `refresh` does opens [refresh.py](../../auth_service/src/auth_service/application/refresh.py) — 20 lines — and sees the whole rule.
+- **Use-case tests run in ~7 seconds** ({{ src("auth_service/tests/", text="auth_service/tests/") }}) with no database, no HTTP, no keys loaded from disk. Every one of the 23 pure-application tests instantiates fake ports directly.
+- **Integration tests run at TestClient speed** without a real Postgres because we override the deps factory. See {{ src("auth_service/tests/test_integration.py") }}.
+- **The application layer is a printed spec.** A reader who wants to know exactly what `refresh` does opens {{ src("auth_service/src/auth_service/application/refresh.py") }} — 20 lines — and sees the whole rule.

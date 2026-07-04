@@ -85,7 +85,7 @@ Skip this if you're just running tests during development. The security tests ar
 
 ## What is *not* run
 
-- **Postgres integration tests.** They don't exist yet. See [strategy.md](strategy.md) and [../../flags.md](../../flags.md#6-real-postgres-integration-test).
+- **Postgres integration tests.** They don't exist yet. See [strategy.md](strategy.md) and {{ src("flags.md", text="../../flags.md", anchor="6-real-postgres-integration-test") }}.
 - **End-to-end tests through Caddy / WAF.** Neither is built.
 - **Load tests.** Not in scope.
 
@@ -106,7 +106,7 @@ That's why you run pytest *from inside* each package directory. Running from the
 
 ## Fixture wiring
 
-- Shared_security uses one fixture: `keypair` in [conftest.py](../../shared_security/tests/conftest.py). Yields a fresh Ed25519 keypair for tests that need one.
-- Auth_service uses richer fixtures in [conftest.py](../../auth_service/tests/conftest.py): `FakeUserRepo`, `FakeRefreshStore`, `FakeAudit`, `FakeClock`, and a `bag` fixture that bundles everything into `AuthDeps`.
+- Shared_security uses one fixture: `keypair` in {{ src("shared_security/tests/conftest.py") }}. Yields a fresh Ed25519 keypair for tests that need one.
+- Auth_service uses richer fixtures in {{ src("auth_service/tests/conftest.py") }}: `FakeUserRepo`, `FakeRefreshStore`, `FakeAudit`, `FakeClock`, and a `bag` fixture that bundles everything into `AuthDeps`.
 
 The application-layer tests use `bag` directly. The integration tests reference the same fake classes to build a `deps_factory` override for `create_app`.

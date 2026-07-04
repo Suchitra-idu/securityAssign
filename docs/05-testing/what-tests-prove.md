@@ -4,33 +4,33 @@ Every test in this repo picks one security property and asserts it. This page wa
 
 ## `shared_security/tests/`
 
-### [test_passwords.py](../../shared_security/tests/test_passwords.py)
+### {{ src("shared_security/tests/test_passwords.py") }}
 - **round trip verifies** — `verify_password(pw, hash_password(pw)) is True`. Bcrypt actually works.
 - **wrong password fails** — verifying a different password against the stored hash returns `False`.
 - **two hashes differ** — hashing the same password twice produces different hashes. Salt is random and used.
 - **malformed hash returns False** — a corrupted or truncated hash string does not crash; `verify_password` returns `False`.
 
-### [test_tokens.py](../../shared_security/tests/test_tokens.py)
+### {{ src("shared_security/tests/test_tokens.py") }}
 - **round trip preserves claims** — `verify_token(sign_token(claims, priv), pub)` returns the same `sub`, `role`, `exp`.
 - **forged token fails** — a token signed by an attacker's private key fails verification with our public key. Signature is what pins identity.
 - **tampered payload fails** — flipping bytes in the signature segment fails. Any bit-flip is detected.
 - **expired token fails** — `exp` in the past raises `TokenError`. Wall-clock expiry is enforced.
 - **algorithm confusion HS256 rejected** — a hand-crafted HS256 token signed with the public key as an HMAC secret is rejected. The verifier pins `algorithms=["EdDSA"]` so the token's `alg` header is not trusted. The test hand-builds the forgery with base64+HMAC because PyJWT's own encode-side check refuses this shape.
 
-### [test_field_crypto.py](../../shared_security/tests/test_field_crypto.py)
+### {{ src("shared_security/tests/test_field_crypto.py") }}
 - **round trip returns original plaintext** — `decrypt(encrypt(pt))` == pt.
 - **wrong key raises DecryptionError** — decrypting with a different key fails.
 - **tampered ciphertext raises DecryptionError** — flipping any byte, including in the nonce prefix or auth tag, fails.
 - **two encryptions differ** — encrypting the same plaintext twice produces different ciphertexts. Nonce is fresh and random.
 
-### [test_transaction_signatures.py](../../shared_security/tests/test_transaction_signatures.py)
+### {{ src("shared_security/tests/test_transaction_signatures.py") }}
 - **round trip verifies** — `verify_transaction(tx, sign_transaction(tx, priv), pub) is True`.
 - **wrong key fails** — attacker-signed tx does not verify.
 - **mutated tx fails** — changing any field of `tx` after signing fails.
 - **truncated signature fails** — signature bytes must be intact.
 - **insertion order doesn't matter** — `{"a":1,"b":2}` and `{"b":2,"a":1}` produce identical signatures because canonicalisation sorts keys.
 
-### [test_audit_chain.py](../../shared_security/tests/test_audit_chain.py)
+### {{ src("shared_security/tests/test_audit_chain.py") }}
 - **empty chain verifies** — the trivial case works.
 - **correct chain verifies** — a well-built chain of several records passes `verify_chain`.
 - **tampered record fails** — modifying any record byte fails verification.
@@ -39,7 +39,7 @@ Every test in this repo picks one security property and asserts it. This page wa
 
 ## `auth_service/tests/`
 
-### [test_register.py](../../auth_service/tests/test_register.py)
+### {{ src("auth_service/tests/test_register.py") }}
 - **stores hashed password not plaintext** — the plaintext never appears in the stored `User.password_hash`. `verify_password` against the stored hash succeeds.
 - **records role verbatim** — role parameter propagates to the stored user.
 - **assigns stable user id** — two registers produce different, non-empty ids.
@@ -47,7 +47,7 @@ Every test in this repo picks one security property and asserts it. This page wa
 - **writes audit event** — exactly one `event="register"` audit event with the new user's id, username, and timestamp.
 - **audit event never carries password** — plaintext password does not appear in any audit event field.
 
-### [test_login.py](../../auth_service/tests/test_login.py)
+### {{ src("auth_service/tests/test_login.py") }}
 - **success returns verifiable access token with role claim** — the returned access token, verified with the public key, contains `sub` = user id, `role` = user role, `iat` = now, `exp` = now + `access_ttl`.
 - **success carries admin role** — admin users get `role: "admin"` in the token.
 - **wrong password rejected, no refresh token stored** — `InvalidCredentials` is raised and `refresh_tokens` remains empty. Session state is only created on success.
@@ -58,7 +58,7 @@ Every test in this repo picks one security property and asserts it. This page wa
 - **failure writes audit event without leaking password** — `event="login_failed"` fires, plaintext password does not appear.
 - **failure for unknown user still audited** — even without a user id, the audit event records the attempted username.
 
-### [test_refresh.py](../../auth_service/tests/test_refresh.py)
+### {{ src("auth_service/tests/test_refresh.py") }}
 - **rotates and issues new pair** — new access and refresh tokens differ from the old ones. Store contains exactly one row (the new one).
 - **old token rejected after rotation** — presenting the pre-rotation token raises `InvalidRefreshToken`.
 - **expired token rejected** — after advancing the fake clock past `refresh_ttl`, refresh raises.
@@ -68,7 +68,7 @@ Every test in this repo picks one security property and asserts it. This page wa
 - **failure writes audit event** — `event="refresh_failed"` on unknown token.
 - **reused token never leaks new pair** — after rotation, presenting the old token does not add anything to the store.
 
-### [test_integration.py](../../auth_service/tests/test_integration.py) — full HTTP layer
+### {{ src("auth_service/tests/test_integration.py") }} — full HTTP layer
 - **register returns 201 with customer role** — response body shape.
 - **register duplicate returns 409** — HTTP mapping of `UsernameTaken`.
 - **register rejects short password** — 422 from Pydantic before use case runs.
@@ -83,7 +83,7 @@ Every test in this repo picks one security property and asserts it. This page wa
 
 ## Cross-referenced from the security controls map
 
-If you want to jump directly from a security point (see [../01-architecture/security-controls.md](../01-architecture/security-controls.md)) to the tests that prove it:
+If you want to jump directly from a security point (see {{ src("01-architecture/security-controls.md", text="../01-architecture/security-controls.md") }}) to the tests that prove it:
 
 - **Password hashing** → `test_passwords.py` + register/login tests.
 - **Token signing** → all of `test_tokens.py` + the login/refresh tests that assert on returned claim shape.

@@ -12,11 +12,11 @@ def encrypt_field(plaintext: bytes, key: bytes) -> bytes # nonce || ciphertext (
 def decrypt_field(blob: bytes, key: bytes) -> bytes      # raises DecryptionError on tag mismatch
 ```
 
-Implementation: [field_crypto.py](../../shared_security/src/shared_security/field_crypto.py).
+Implementation: {{ src("shared_security/src/shared_security/field_crypto.py") }}.
 
 ## Why AES-256-GCM and not another mode
 
-- **Authenticated encryption** — GCM produces a MAC tag alongside the ciphertext. Any single-bit change to the ciphertext, nonce, or associated data causes `decrypt_field` to fail. This is what "tampered ciphertext fails to decrypt" means in [../../CLAUDE.md](../../CLAUDE.md).
+- **Authenticated encryption** — GCM produces a MAC tag alongside the ciphertext. Any single-bit change to the ciphertext, nonce, or associated data causes `decrypt_field` to fail. This is what "tampered ciphertext fails to decrypt" means in {{ src("CLAUDE.md", text="../../CLAUDE.md") }}.
 - **256-bit key** — 128-bit is fine cryptographically; 256-bit is the extra margin for a security-focused build. No practical performance hit on modern CPUs with AES-NI.
 - **Widely available** — the `cryptography` library ships hardware-accelerated AES-GCM. No custom implementation.
 
@@ -28,7 +28,7 @@ Implementation: [field_crypto.py](../../shared_security/src/shared_security/fiel
 
 The output of `encrypt_field` is a single `bytes` object concatenating these. Storing one column per encrypted field is the intended pattern — no separate nonce or tag columns.
 
-- **Nonce size: 12 bytes** — the value GCM standardises to; anything else risks security proofs breaking. Constant `_NONCE_SIZE` in [field_crypto.py](../../shared_security/src/shared_security/field_crypto.py).
+- **Nonce size: 12 bytes** — the value GCM standardises to; anything else risks security proofs breaking. Constant `_NONCE_SIZE` in {{ src("shared_security/src/shared_security/field_crypto.py") }}.
 - **Tag size: 16 bytes** — GCM default. Included at the end of the AESGCM.encrypt output automatically.
 
 ## Nonce discipline
@@ -42,7 +42,7 @@ The rule that follows: **do not roll your own encrypt loop by reusing nonces fro
 ## What this defends against
 
 - **Passive database read.** An attacker who reads the DB (dump, backup, replica leak) sees ciphertext they cannot decrypt without the key.
-- **Tampered ciphertext.** Any modification — bit flips, truncation, appended bytes — fails the GCM tag check and raises `DecryptionError`. The test `test_tampered_ciphertext_fails` in [test_field_crypto.py](../../shared_security/tests/test_field_crypto.py) covers this.
+- **Tampered ciphertext.** Any modification — bit flips, truncation, appended bytes — fails the GCM tag check and raises `DecryptionError`. The test `test_tampered_ciphertext_fails` in {{ src("shared_security/tests/test_field_crypto.py") }} covers this.
 - **Nonce collisions during normal operation.** Random 96-bit nonces at expected volumes.
 
 ## What this does *not* defend against
@@ -55,7 +55,7 @@ The rule that follows: **do not roll your own encrypt loop by reusing nonces fro
 
 ## Tests that pin this behaviour
 
-[test_field_crypto.py](../../shared_security/tests/test_field_crypto.py):
+{{ src("shared_security/tests/test_field_crypto.py") }}:
 
 - Round trip: `decrypt_field(encrypt_field(pt, key), key) == pt`.
 - Wrong key raises `DecryptionError`.

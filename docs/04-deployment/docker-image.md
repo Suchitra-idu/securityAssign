@@ -1,6 +1,6 @@
 # Docker image
 
-The auth_service image. One Dockerfile at [../../auth_service/Dockerfile](../../auth_service/Dockerfile).
+The auth_service image. One Dockerfile at {{ src("auth_service/Dockerfile", text="../../auth_service/Dockerfile") }}.
 
 ## Contents
 
@@ -74,7 +74,7 @@ uvicorn auth_service.infrastructure.main:app --host 0.0.0.0 --port 8000
 - **No multi-stage build** — everything is done in one layer. A wheel-building stage that discards build-time-only artifacts would trim the image. Not done because the image is already small.
 - **No pinned base image digest** — `python:3.12-slim` moves. For deployment we would pin to `python:3.12-slim@sha256:…`.
 - **No non-obvious labels** — `LABEL org.opencontainers.image.…` is useful in production for image scanning. Not needed for the demo.
-- **No secrets baked in** — the private key is passed at runtime via env var, not embedded. This is correct. See [flag 8](../../flags.md) for the hardening notes.
+- **No secrets baked in** — the private key is passed at runtime via env var, not embedded. This is correct. See {{ src("flags.md", text="flag 8") }} for the hardening notes.
 
 ## Rebuilding
 

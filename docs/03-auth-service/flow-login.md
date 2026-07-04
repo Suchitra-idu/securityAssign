@@ -87,7 +87,7 @@ That last point is the whole reason for the two-connection design. See [audit-lo
 
 ## Code path
 
-Route: [login_route in app.py](../../auth_service/src/auth_service/infrastructure/app.py):
+Route: {{ src("auth_service/src/auth_service/infrastructure/app.py", text="login_route in app.py") }}:
 
 ```python
 @app.post("/login", response_model=TokenResponse)
@@ -99,7 +99,7 @@ def login_route(body: LoginRequest, deps: AuthDeps = Depends(deps_factory)):
     return TokenResponse(access_token=pair.access, refresh_token=pair.refresh)
 ```
 
-Use case: [login in application/login.py](../../auth_service/src/auth_service/application/login.py).
+Use case: {{ src("auth_service/src/auth_service/application/login.py", text="login in application/login.py") }}.
 
 ## Access token claim shape
 
@@ -112,7 +112,7 @@ Use case: [login in application/login.py](../../auth_service/src/auth_service/ap
 }
 ```
 
-Locked as contract 2 — see [../01-architecture/contracts.md](../01-architecture/contracts.md).
+Locked as contract 2 — see {{ src("01-architecture/contracts.md", text="../01-architecture/contracts.md") }}.
 
 ## Refresh token storage
 
@@ -133,7 +133,7 @@ The raw token is never stored. The database sees only its SHA-256 hash. A databa
 | `422` | Malformed body (missing fields, extras present, empty strings) | Pydantic error detail |
 | `500` | Postgres unavailable, key material invalid at startup | Generic |
 
-The 401 body is deliberately identical for "user does not exist" and "wrong password" — see [../01-architecture/security-controls.md](../01-architecture/security-controls.md) point 5. However, the *response time* is currently not identical because unknown-user short-circuits bcrypt — [flag 1](../../flags.md).
+The 401 body is deliberately identical for "user does not exist" and "wrong password" — see {{ src("01-architecture/security-controls.md", text="../01-architecture/security-controls.md") }} point 5. However, the *response time* is currently not identical because unknown-user short-circuits bcrypt — {{ src("flags.md", text="flag 1") }}.
 
 ## Audit events
 
@@ -146,5 +146,5 @@ Also emitted to stdout as `LOGIN_SUCCESS username=alice` / `LOGIN_FAILED usernam
 
 ## Tests that pin this flow
 
-- Application-layer: [test_login.py](../../auth_service/tests/test_login.py) — verifiable access token with role, admin role variant, wrong password rejected with no refresh token stored, unknown user rejected, refresh token opaque and not stored plaintext, refresh record has correct expiry, audit events (success and failure), audit failure event does not leak plaintext password.
-- Integration: `test_login_returns_tokens`, `test_login_wrong_password_returns_401` in [test_integration.py](../../auth_service/tests/test_integration.py).
+- Application-layer: {{ src("auth_service/tests/test_login.py") }} — verifiable access token with role, admin role variant, wrong password rejected with no refresh token stored, unknown user rejected, refresh token opaque and not stored plaintext, refresh record has correct expiry, audit events (success and failure), audit failure event does not leak plaintext password.
+- Integration: `test_login_returns_tokens`, `test_login_wrong_password_returns_401` in {{ src("auth_service/tests/test_integration.py") }}.

@@ -1,6 +1,6 @@
 # Database schema
 
-Three tables. All in the default `public` schema. DDL lives in [schema.sql](../../auth_service/src/auth_service/infrastructure/schema.sql) and is applied idempotently by `apply_schema` in [db.py](../../auth_service/src/auth_service/infrastructure/db.py) at service startup.
+Three tables. All in the default `public` schema. DDL lives in {{ src("auth_service/src/auth_service/infrastructure/schema.sql") }} and is applied idempotently by `apply_schema` in {{ src("auth_service/src/auth_service/infrastructure/db.py") }} at service startup.
 
 ## `users`
 
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 | Column | Notes |
 |--------|-------|
-| `id` | UUIDv4, assigned in [register.py](../../auth_service/src/auth_service/application/register.py). Used as the JWT `sub` claim. |
+| `id` | UUIDv4, assigned in {{ src("auth_service/src/auth_service/application/register.py") }}. Used as the JWT `sub` claim. |
 | `username` | Unique. Charset and length enforced at the HTTP boundary; DB unique constraint catches the check-then-insert race. |
 | `password_hash` | Bcrypt hash string (starts with `$2b$12$…`). Never plaintext. |
 | `role` | `CHECK` constraint defends against direct SQL insertions with bad roles. Application-level, `Role = Literal["customer", "admin"]` provides the same guarantee at boundaries. |
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 Constraint names:
 - Primary key `users_pkey`.
-- Unique constraint `users_username_key` — the psycopg `UniqueViolation` raised on duplicate insert is caught by [PostgresUserRepository.add](../../auth_service/src/auth_service/infrastructure/repositories/users_repo.py) and re-raised as `UsernameTaken`.
+- Unique constraint `users_username_key` — the psycopg `UniqueViolation` raised on duplicate insert is caught by {{ src("auth_service/src/auth_service/infrastructure/repositories/users_repo.py", text="PostgresUserRepository.add") }} and re-raised as `UsernameTaken`.
 
 ## `refresh_tokens`
 
@@ -68,9 +68,9 @@ CREATE TABLE IF NOT EXISTS audit_log (
 | `hash` | 32-byte SHA-256 of `prev_hash || canonical_json_bytes(event)`. |
 | `created_at` | Wall-clock timestamp. Not used for verification (`event["at"]` is the canonical time). |
 
-Chain-integrity design and concurrency handling: [../03-auth-service/audit-log-durability.md](../03-auth-service/audit-log-durability.md).
+Chain-integrity design and concurrency handling: {{ src("03-auth-service/audit-log-durability.md", text="../03-auth-service/audit-log-durability.md") }}.
 
-Chain math: [../02-shared-security/audit-chain.md](../02-shared-security/audit-chain.md).
+Chain math: {{ src("02-shared-security/audit-chain.md", text="../02-shared-security/audit-chain.md") }}.
 
 ## Migration story
 

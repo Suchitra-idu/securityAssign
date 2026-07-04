@@ -73,7 +73,7 @@ Client                    RefreshUseCase                                Postgres
 
 ## Code path
 
-Route: [refresh_route in app.py](../../auth_service/src/auth_service/infrastructure/app.py):
+Route: {{ src("auth_service/src/auth_service/infrastructure/app.py", text="refresh_route in app.py") }}:
 
 ```python
 @app.post("/refresh", response_model=TokenResponse)
@@ -85,7 +85,7 @@ def refresh_route(body: RefreshRequest, deps: AuthDeps = Depends(deps_factory)):
     return TokenResponse(access_token=pair.access, refresh_token=pair.refresh)
 ```
 
-Use case: [refresh in application/refresh.py](../../auth_service/src/auth_service/application/refresh.py).
+Use case: {{ src("auth_service/src/auth_service/application/refresh.py", text="refresh in application/refresh.py") }}.
 
 ## Rotation semantics
 
@@ -125,5 +125,5 @@ The database stores `sha256(refresh_token)` as hex. Not the raw token. Rationale
 
 ## Tests that pin this flow
 
-- Application-layer: [test_refresh.py](../../auth_service/tests/test_refresh.py) — rotation produces different tokens, old token rejected after rotation, expired token rejected, unknown token rejected, subject and role preserved, audit events, reuse never mints anything.
-- Integration: `test_refresh_rotates_tokens`, `test_refresh_old_token_after_rotation_returns_401` in [test_integration.py](../../auth_service/tests/test_integration.py).
+- Application-layer: {{ src("auth_service/tests/test_refresh.py") }} — rotation produces different tokens, old token rejected after rotation, expired token rejected, unknown token rejected, subject and role preserved, audit events, reuse never mints anything.
+- Integration: `test_refresh_rotates_tokens`, `test_refresh_old_token_after_rotation_returns_401` in {{ src("auth_service/tests/test_integration.py") }}.

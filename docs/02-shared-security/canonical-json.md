@@ -8,7 +8,7 @@ Deterministic JSON serialisation. One helper, three lines. Called from transacti
 def canonical_json_bytes(payload: dict) -> bytes
 ```
 
-Implementation: [canonical.py](../../shared_security/src/shared_security/canonical.py).
+Implementation: {{ src("shared_security/src/shared_security/canonical.py") }}.
 
 ## The rules
 
@@ -43,12 +43,12 @@ Nothing on its own — it is a serialisation helper. It gains meaning only when 
 
 The primitive is small enough that it doesn't have its own test file. It is *transitively* pinned by:
 
-- Transaction signature round-trip tests in [test_transaction_signatures.py](../../shared_security/tests/test_transaction_signatures.py) — specifically the "insertion order does not matter" test proves the canonicalisation guarantee.
-- Audit chain tests in [test_audit_chain.py](../../shared_security/tests/test_audit_chain.py) — proves that the same event dict produces the same recorded hash.
+- Transaction signature round-trip tests in {{ src("shared_security/tests/test_transaction_signatures.py") }} — specifically the "insertion order does not matter" test proves the canonicalisation guarantee.
+- Audit chain tests in {{ src("shared_security/tests/test_audit_chain.py") }} — proves that the same event dict produces the same recorded hash.
 
 If a future refactor changes the serialisation rules, both test files will break — the tests are the guardrail.
 
 ## Usage sites in the current build
 
-- [transaction_signatures.py](../../shared_security/src/shared_security/transaction_signatures.py) — hashes over canonical form.
-- [audit_log.py](../../auth_service/src/auth_service/infrastructure/audit_log.py) — canonicalises each event dict before chaining.
+- {{ src("shared_security/src/shared_security/transaction_signatures.py") }} — hashes over canonical form.
+- {{ src("auth_service/src/auth_service/infrastructure/audit_log.py") }} — canonicalises each event dict before chaining.

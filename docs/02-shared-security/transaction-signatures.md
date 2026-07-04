@@ -9,7 +9,7 @@ def sign_transaction(tx: dict, private_key: str) -> bytes
 def verify_transaction(tx: dict, signature: bytes, public_key: str) -> bool
 ```
 
-Implementation: [transaction_signatures.py](../../shared_security/src/shared_security/transaction_signatures.py).
+Implementation: {{ src("shared_security/src/shared_security/transaction_signatures.py") }}.
 
 - `sign_transaction` returns raw 64-byte Ed25519 signature.
 - `verify_transaction` returns `True` on valid signature, `False` otherwise. Does not raise.
@@ -59,7 +59,7 @@ PEM strings, same format and generation as [tokens.md](tokens.md). In the bankin
 
 ## Tests that pin this behaviour
 
-[test_transaction_signatures.py](../../shared_security/tests/test_transaction_signatures.py):
+{{ src("shared_security/tests/test_transaction_signatures.py") }}:
 
 - Round trip: `verify_transaction(tx, sign_transaction(tx, priv), pub) is True`.
 - Wrong-key signature fails.

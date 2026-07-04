@@ -13,7 +13,7 @@ FastAPI service that owns identity and tokens. Signs. Never verifies for externa
 
 ## Three layers
 
-Per [../01-architecture/clean-architecture.md](../01-architecture/clean-architecture.md), dependencies point inward only:
+Per {{ src("01-architecture/clean-architecture.md", text="../01-architecture/clean-architecture.md") }}, dependencies point inward only:
 
 ```
 auth_service/
@@ -91,18 +91,18 @@ Two things about this service are worth understanding independently:
 
 Two test tiers:
 
-- **Unit tests over the application layer** ([test_register.py](../../auth_service/tests/test_register.py), [test_login.py](../../auth_service/tests/test_login.py), [test_refresh.py](../../auth_service/tests/test_refresh.py)) — use fake ports, no HTTP, no database. Fast (~7 seconds). Test-first per CLAUDE.md.
-- **Integration tests via TestClient** ([test_integration.py](../../auth_service/tests/test_integration.py)) — real FastAPI app, still fake ports (injected via `deps_factory` override). Covers route wiring, Pydantic validation, error → HTTP translation. Not test-first per CLAUDE.md.
+- **Unit tests over the application layer** ({{ src("auth_service/tests/test_register.py") }}, {{ src("auth_service/tests/test_login.py") }}, {{ src("auth_service/tests/test_refresh.py") }}) — use fake ports, no HTTP, no database. Fast (~7 seconds). Test-first per CLAUDE.md.
+- **Integration tests via TestClient** ({{ src("auth_service/tests/test_integration.py") }}) — real FastAPI app, still fake ports (injected via `deps_factory` override). Covers route wiring, Pydantic validation, error → HTTP translation. Not test-first per CLAUDE.md.
 
-See [../05-testing/what-tests-prove.md](../05-testing/what-tests-prove.md) for a walkthrough.
+See {{ src("05-testing/what-tests-prove.md", text="../05-testing/what-tests-prove.md") }} for a walkthrough.
 
 ## What is not built here
 
-- Postgres integration tests. Real DB round-trips are smoke-tested via `docker compose up`. Automated Postgres integration is a follow-up ([flag 6](../../flags.md)).
-- Timing-safe unknown-user login ([flag 1](../../flags.md)).
-- Admin bootstrap ([flag 2](../../flags.md)).
-- fail2ban filter ([flag 3](../../flags.md)).
+- Postgres integration tests. Real DB round-trips are smoke-tested via `docker compose up`. Automated Postgres integration is a follow-up ({{ src("flags.md", text="flag 6") }}).
+- Timing-safe unknown-user login ({{ src("flags.md", text="flag 1") }}).
+- Admin bootstrap ({{ src("flags.md", text="flag 2") }}).
+- fail2ban filter ({{ src("flags.md", text="flag 3") }}).
 
 ## Configuration
 
-All via env vars, `AUTH_` prefix. See [../04-deployment/env-vars.md](../04-deployment/env-vars.md).
+All via env vars, `AUTH_` prefix. See {{ src("04-deployment/env-vars.md", text="../04-deployment/env-vars.md") }}.

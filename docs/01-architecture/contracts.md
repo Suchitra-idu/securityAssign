@@ -1,6 +1,6 @@
 # Locked contracts
 
-Per [../../CLAUDE.md](../../CLAUDE.md):
+Per {{ src("CLAUDE.md", text="../../CLAUDE.md") }}:
 
 > Two contracts must be agreed up front and never changed silently:
 >
@@ -119,7 +119,7 @@ Default TTL: **300 seconds** (5 minutes). Configurable via `AUTH_ACCESS_TTL_SECO
 
 - The auth service persists a SHA-256 hash of the token in the `refresh_tokens` table alongside `user_id` and `expires_at`.
 - Presenting the token to `POST /refresh` looks it up by hash, verifies expiry, deletes the row (rotation), and issues a fresh access + refresh pair.
-- **Reusing a rotated refresh token is rejected** — the row is gone. This does not currently trigger "reuse detected → invalidate all sessions" behaviour; see [../03-auth-service/flow-refresh.md](../03-auth-service/flow-refresh.md).
+- **Reusing a rotated refresh token is rejected** — the row is gone. This does not currently trigger "reuse detected → invalidate all sessions" behaviour; see {{ src("03-auth-service/flow-refresh.md", text="../03-auth-service/flow-refresh.md") }}.
 
 Default TTL: **86 400 seconds** (24 hours). Configurable via `AUTH_REFRESH_TTL_SECONDS`, minimum 3 600.
 
@@ -142,6 +142,6 @@ Default TTL: **86 400 seconds** (24 hours). Configurable via `AUTH_REFRESH_TTL_S
 If either contract must change:
 1. Announce in a doc/PR/message to the other person.
 2. Update this file.
-3. Update the tests that pin the contract (contract-1 tests: [shared_security/tests/](../../shared_security/tests/); contract-2 tests: [auth_service/tests/test_login.py](../../auth_service/tests/test_login.py), [test_refresh.py](../../auth_service/tests/test_refresh.py)).
+3. Update the tests that pin the contract (contract-1 tests: {{ src("shared_security/tests/", text="shared_security/tests/") }}; contract-2 tests: {{ src("auth_service/tests/test_login.py", text="auth_service/tests/test_login.py") }}, {{ src("auth_service/tests/test_refresh.py") }}).
 4. Update the consumer side.
 5. Ship in one coordinated change, not two half-changes.

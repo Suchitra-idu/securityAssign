@@ -63,7 +63,7 @@ Client                    FastAPI           Pydantic          RegisterUseCase   
 
 ## Code path
 
-Route: [register_route in app.py](../../auth_service/src/auth_service/infrastructure/app.py):
+Route: {{ src("auth_service/src/auth_service/infrastructure/app.py", text="register_route in app.py") }}:
 
 ```python
 @app.post("/register", response_model=UserResponse, status_code=201)
@@ -75,7 +75,7 @@ def register_route(body: RegisterRequest, deps: AuthDeps = Depends(deps_factory)
     return UserResponse(user_id=user.id, username=user.username, role=user.role)
 ```
 
-Use case: [register in application/register.py](../../auth_service/src/auth_service/application/register.py). See [application-layer.md](application-layer.md#register).
+Use case: {{ src("auth_service/src/auth_service/application/register.py", text="register in application/register.py") }}. See [application-layer.md](application-layer.md#register).
 
 ## Failure modes
 
@@ -114,7 +114,7 @@ The public endpoint always calls `register(..., role="customer", ...)`. A client
 2. The Pydantic model does not declare a `role` field.
 3. `extra="forbid"` means any additional field (including `role`) causes 422.
 
-Locked by [test_register_forbids_role_field_from_request in test_integration.py](../../auth_service/tests/test_integration.py). Admin accounts must be created via seeded SQL or a bootstrap CLI (not yet built — [flag 2](../../flags.md)).
+Locked by {{ src("auth_service/tests/test_integration.py", text="test_register_forbids_role_field_from_request in test_integration.py") }}. Admin accounts must be created via seeded SQL or a bootstrap CLI (not yet built — {{ src("flags.md", text="flag 2") }}).
 
 ## Audit event
 
@@ -126,5 +126,5 @@ Persisted through the hash-chained audit log via the autocommit audit connection
 
 ## Tests that pin this flow
 
-- Application-layer: [test_register.py](../../auth_service/tests/test_register.py) — password hashed, role stored, duplicate rejected, audit event emitted, audit event never carries plaintext password.
-- Integration: `test_register_returns_201_with_customer_role`, `test_register_duplicate_returns_409`, `test_register_rejects_short_password`, `test_register_rejects_bad_username`, `test_register_forbids_role_field_from_request` in [test_integration.py](../../auth_service/tests/test_integration.py).
+- Application-layer: {{ src("auth_service/tests/test_register.py") }} — password hashed, role stored, duplicate rejected, audit event emitted, audit event never carries plaintext password.
+- Integration: `test_register_returns_201_with_customer_role`, `test_register_duplicate_returns_409`, `test_register_rejects_short_password`, `test_register_rejects_bad_username`, `test_register_forbids_role_field_from_request` in {{ src("auth_service/tests/test_integration.py") }}.

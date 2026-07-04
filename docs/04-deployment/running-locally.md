@@ -27,9 +27,9 @@ Copy the two strings into `.env` as `AUTH_SIGNING_PRIVATE_KEY_PEM` and `AUTH_SIG
 docker compose up --build
 ```
 
-This builds the auth_service image from [../../auth_service/Dockerfile](../../auth_service/Dockerfile), starts Postgres, waits for its healthcheck, and boots auth_service. Auth applies the schema on startup ([apply_schema](../../auth_service/src/auth_service/infrastructure/db.py)) so the tables exist even on first boot.
+This builds the auth_service image from {{ src("auth_service/Dockerfile", text="../../auth_service/Dockerfile") }}, starts Postgres, waits for its healthcheck, and boots auth_service. Auth applies the schema on startup ({{ src("auth_service/src/auth_service/infrastructure/db.py", text="apply_schema") }}) so the tables exist even on first boot.
 
-Auth is currently not front-fronted by Caddy, so if you want to hit it from your host, add a `ports:` block to the `auth` service in [../../deploy/compose/docker-compose.yml](../../deploy/compose/docker-compose.yml) *temporarily* while developing:
+Auth is currently not front-fronted by Caddy, so if you want to hit it from your host, add a `ports:` block to the `auth` service in {{ src("deploy/compose/docker-compose.yml", text="../../deploy/compose/docker-compose.yml") }} *temporarily* while developing:
 
 ```yaml
   auth:
@@ -87,7 +87,7 @@ cd auth_service && pytest -q
 cd ../shared_security && pytest -q
 ```
 
-See [../05-testing/running-tests.md](../05-testing/running-tests.md).
+See {{ src("05-testing/running-tests.md", text="../05-testing/running-tests.md") }}.
 
 ### Running the FastAPI server
 

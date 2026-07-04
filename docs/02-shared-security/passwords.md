@@ -9,7 +9,7 @@ def hash_password(password: str) -> str
 def verify_password(password: str, hashed: str) -> bool
 ```
 
-Implementation: [passwords.py](../../shared_security/src/shared_security/passwords.py).
+Implementation: {{ src("shared_security/src/shared_security/passwords.py") }}.
 
 - `hash_password` returns a bcrypt hash string (starts with `$2b$12$…` at library default cost).
 - `verify_password` returns `True` on match, `False` on mismatch or malformed hash.
@@ -45,14 +45,14 @@ Bcrypt generates a fresh 16-byte random salt on every `hash_password` call and e
 
 ## What this does *not* defend against
 
-- **Weak passwords.** A user picking `password123` will be cracked eventually. Mitigation is at the application layer: minimum length is enforced by [schemas.py](../../auth_service/src/auth_service/infrastructure/schemas.py) at 12 characters. No dictionary check or entropy score is done — a real deployment would add one.
+- **Weak passwords.** A user picking `password123` will be cracked eventually. Mitigation is at the application layer: minimum length is enforced by {{ src("auth_service/src/auth_service/infrastructure/schemas.py") }} at 12 characters. No dictionary check or entropy score is done — a real deployment would add one.
 - **Online guessing.** Rate limiting is the WAF's job. Not implemented yet.
-- **Timing attacks on username existence.** `login()` short-circuits when the user is unknown, so response time reveals user existence. See [flag 1](../../flags.md).
+- **Timing attacks on username existence.** `login()` short-circuits when the user is unknown, so response time reveals user existence. See {{ src("flags.md", text="flag 1") }}.
 - **Bcrypt truncation quirks.** Bcrypt truncates passwords at 72 bytes. Our max password length (128 chars) exceeds this. If a user picks a very long password, only the first 72 bytes matter. Documented; not compensated for. A real deployment might pre-hash with SHA-256 and base64-encode, then bcrypt — the standard workaround.
 
 ## Tests that pin this behaviour
 
-[test_passwords.py](../../shared_security/tests/test_passwords.py):
+{{ src("shared_security/tests/test_passwords.py") }}:
 
 - Round trip: `verify_password(pw, hash_password(pw))` is `True`.
 - Wrong password fails: `verify_password("other", hash_password(pw))` is `False`.
@@ -61,5 +61,5 @@ Bcrypt generates a fresh 16-byte random salt on every `hash_password` call and e
 
 ## Usage sites in the current build
 
-- [register.py](../../auth_service/src/auth_service/application/register.py) — hashes password on user creation.
-- [login.py](../../auth_service/src/auth_service/application/login.py) — verifies password on authentication.
+- {{ src("auth_service/src/auth_service/application/register.py") }} — hashes password on user creation.
+- {{ src("auth_service/src/auth_service/application/login.py") }} — verifies password on authentication.

@@ -1,6 +1,6 @@
 # Audit-log durability model
 
-Two subtle decisions in [PostgresAuditLog](../../auth_service/src/auth_service/infrastructure/audit_log.py) that deserve their own page: the **separate autocommit connection** for audit writes, and the **`LOCK TABLE ... IN SHARE ROW EXCLUSIVE MODE`** inside each write. Both exist to preserve properties that a naive implementation would violate.
+Two subtle decisions in {{ src("auth_service/src/auth_service/infrastructure/audit_log.py", text="PostgresAuditLog") }} that deserve their own page: the **separate autocommit connection** for audit writes, and the **`LOCK TABLE ... IN SHARE ROW EXCLUSIVE MODE`** inside each write. Both exist to preserve properties that a naive implementation would violate.
 
 ## Property 1: Failed operations must still audit
 
@@ -13,7 +13,7 @@ The naive design puts audit writes in the same transaction as everything else. T
 
 The fix is to give the audit sink its own connection, set to **autocommit**. Every `record()` call opens a brief explicit transaction on that connection and commits before returning to the caller. The caller's main transaction is unaffected — it can commit or roll back on its own timeline without touching audit durability.
 
-Concretely, the FastAPI dependency generator in [app.py](../../auth_service/src/auth_service/infrastructure/app.py) opens **two connections** per request:
+Concretely, the FastAPI dependency generator in {{ src("auth_service/src/auth_service/infrastructure/app.py") }} opens **two connections** per request:
 
 ```python
 def deps_factory() -> Iterator[AuthDeps]:
@@ -91,7 +91,7 @@ SELECT event::text, prev_hash, hash FROM audit_log ORDER BY id ASC;
 
 Passes each `(record, hash)` pair through `shared_security.audit_chain.verify_chain`. Any mismatch means the log was tampered with, deleted from, inserted into, or the chain was forked (per Property 2).
 
-`event::text` needs to be re-parsed and re-canonicalised through `canonical_json_bytes` — the primitive is documented in [../02-shared-security/canonical-json.md](../02-shared-security/canonical-json.md).
+`event::text` needs to be re-parsed and re-canonicalised through `canonical_json_bytes` — the primitive is documented in {{ src("02-shared-security/canonical-json.md", text="../02-shared-security/canonical-json.md") }}.
 
 ## What this design does *not* guarantee
 
@@ -111,6 +111,6 @@ Passes each `(record, hash)` pair through `shared_security.audit_chain.verify_ch
 
 ## Tests that pin this behaviour
 
-- The application-layer tests use a `FakeAudit` that always accepts writes, so they cover *what gets recorded* but not *how it persists*. See [test_login.py](../../auth_service/tests/test_login.py) `test_login_failure_writes_audit_event_without_leaking_password` for the "failed operation still records an audit event" property at the use-case level.
-- The chain integrity primitive itself is tested in [test_audit_chain.py](../../shared_security/tests/test_audit_chain.py).
-- **Real Postgres integration tests** for `PostgresAuditLog` (verifying concurrent writers don't fork, chain survives round trip, LOCK behaves) are a follow-up — [flag 6](../../flags.md).
+- The application-layer tests use a `FakeAudit` that always accepts writes, so they cover *what gets recorded* but not *how it persists*. See {{ src("auth_service/tests/test_login.py") }} `test_login_failure_writes_audit_event_without_leaking_password` for the "failed operation still records an audit event" property at the use-case level.
+- The chain integrity primitive itself is tested in {{ src("shared_security/tests/test_audit_chain.py") }}.
+- **Real Postgres integration tests** for `PostgresAuditLog` (verifying concurrent writers don't fork, chain survives round trip, LOCK behaves) are a follow-up — {{ src("flags.md", text="flag 6") }}.

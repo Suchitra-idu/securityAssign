@@ -4,7 +4,7 @@ A small Python package of cryptographic and integrity primitives, imported by ev
 
 ## Layout
 
-Flat, deliberately. See [../01-architecture/clean-architecture.md](../01-architecture/clean-architecture.md) for why the layering rule that applies to FastAPI services does *not* apply here.
+Flat, deliberately. See {{ src("01-architecture/clean-architecture.md", text="../01-architecture/clean-architecture.md") }} for why the layering rule that applies to FastAPI services does *not* apply here.
 
 ```
 shared_security/
@@ -30,17 +30,17 @@ shared_security/
 
 | Primitive | File | Doc |
 |-----------|------|-----|
-| Password hashing (bcrypt) | [passwords.py](../../shared_security/src/shared_security/passwords.py) | [passwords.md](passwords.md) |
-| Token signing (Ed25519 JWT) | [tokens.py](../../shared_security/src/shared_security/tokens.py) | [tokens.md](tokens.md) |
-| Field encryption (AES-256-GCM) | [field_crypto.py](../../shared_security/src/shared_security/field_crypto.py) | [field-crypto.md](field-crypto.md) |
-| Transaction signatures (Ed25519) | [transaction_signatures.py](../../shared_security/src/shared_security/transaction_signatures.py) | [transaction-signatures.md](transaction-signatures.md) |
-| Audit hash chain (SHA-256) | [audit_chain.py](../../shared_security/src/shared_security/audit_chain.py) | [audit-chain.md](audit-chain.md) |
-| Canonical JSON | [canonical.py](../../shared_security/src/shared_security/canonical.py) | [canonical-json.md](canonical-json.md) |
+| Password hashing (bcrypt) | {{ src("shared_security/src/shared_security/passwords.py") }} | [passwords.md](passwords.md) |
+| Token signing (Ed25519 JWT) | {{ src("shared_security/src/shared_security/tokens.py") }} | [tokens.md](tokens.md) |
+| Field encryption (AES-256-GCM) | {{ src("shared_security/src/shared_security/field_crypto.py") }} | [field-crypto.md](field-crypto.md) |
+| Transaction signatures (Ed25519) | {{ src("shared_security/src/shared_security/transaction_signatures.py") }} | [transaction-signatures.md](transaction-signatures.md) |
+| Audit hash chain (SHA-256) | {{ src("shared_security/src/shared_security/audit_chain.py") }} | [audit-chain.md](audit-chain.md) |
+| Canonical JSON | {{ src("shared_security/src/shared_security/canonical.py") }} | [canonical-json.md](canonical-json.md) |
 
 ## Guarantees at the boundary
 
 - **Deterministic behaviour where required.** `canonical_json_bytes` produces byte-identical output for equal dicts. Transaction verification depends on this.
-- **Explicit failure modes.** Every primitive documents whether it raises or returns `False` on failure. See [../01-architecture/contracts.md](../01-architecture/contracts.md).
+- **Explicit failure modes.** Every primitive documents whether it raises or returns `False` on failure. See {{ src("01-architecture/contracts.md", text="../01-architecture/contracts.md") }}.
 - **No global state.** Every function takes its keys and material as arguments. No key registry, no module-level singletons, no environment reads. Callers own key management.
 - **Pinned algorithms.** Where an algorithm choice exists (JWT `alg`), it is pinned in code and the token header is never trusted to override it.
 
@@ -53,7 +53,7 @@ shared_security/
 
 ## Test-first policy
 
-Per [../../CLAUDE.md](../../CLAUDE.md), shared_security is built test-first. Every test in [shared_security/tests/](../../shared_security/tests/) was written before the implementation. The tests double as the readable specification of the crypto boundary — [../05-testing/what-tests-prove.md](../05-testing/what-tests-prove.md) walks through what each one asserts.
+Per {{ src("CLAUDE.md", text="../../CLAUDE.md") }}, shared_security is built test-first. Every test in {{ src("shared_security/tests/", text="shared_security/tests/") }} was written before the implementation. The tests double as the readable specification of the crypto boundary — {{ src("05-testing/what-tests-prove.md", text="../05-testing/what-tests-prove.md") }} walks through what each one asserts.
 
 ## Ownership
 

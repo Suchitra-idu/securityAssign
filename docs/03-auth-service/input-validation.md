@@ -2,7 +2,7 @@
 
 Every request body is validated by Pydantic **before** the use case runs. Malformed input → 422 with a field-scoped error detail; nothing else executes.
 
-Location: [schemas.py](../../auth_service/src/auth_service/infrastructure/schemas.py).
+Location: {{ src("auth_service/src/auth_service/infrastructure/schemas.py") }}.
 
 ## Global setting: `extra="forbid"`
 
@@ -14,7 +14,7 @@ model_config = ConfigDict(extra="forbid")
 
 This is the single most valuable line in the file. It means unknown fields cause 422 rather than being silently ignored. Concretely:
 
-- A client sending `{"username": "alice", "password": "…", "role": "admin"}` to `/register` gets 422 — `role` is not declared on `RegisterRequest`. The client cannot smuggle a role. Locked by [test_register_forbids_role_field_from_request](../../auth_service/tests/test_integration.py).
+- A client sending `{"username": "alice", "password": "…", "role": "admin"}` to `/register` gets 422 — `role` is not declared on `RegisterRequest`. The client cannot smuggle a role. Locked by {{ src("auth_service/tests/test_integration.py", text="test_register_forbids_role_field_from_request") }}.
 - Same defense against smuggled `id`, `sub`, or anything else a caller might imagine matters.
 
 Rejecting unknown fields is stricter than the JSON RFC requires and stricter than most APIs default to. That is deliberate. Explicit contract, no room for parameter smuggling.
@@ -37,8 +37,8 @@ def _username_charset(cls, v: str) -> str:
 Where `_USERNAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")`.
 
 - **Username length 3–32.** Enough for real names, capped to avoid gigantic identifiers polluting logs.
-- **Username charset**: letters, digits, underscore, dot, dash. Rules out SQL fragments (`'`, `;`), URL/path components (`/`, `?`), whitespace, control chars, and unicode confusables. Not because our SQL is unsafe (it uses parameterised queries — see [users_repo.py](../../auth_service/src/auth_service/infrastructure/repositories/users_repo.py)) but because a restrictive charset avoids any downstream ambiguity in logs, URL routing, and file names.
-- **Password 12–128.** Twelve is a common minimum-that-doesn't-feel-punitive. 128 is a hard upper bound to keep bcrypt hashing time predictable (though bcrypt itself truncates at 72 bytes — see [../02-shared-security/passwords.md](../02-shared-security/passwords.md#what-this-does-not-defend-against)).
+- **Username charset**: letters, digits, underscore, dot, dash. Rules out SQL fragments (`'`, `;`), URL/path components (`/`, `?`), whitespace, control chars, and unicode confusables. Not because our SQL is unsafe (it uses parameterised queries — see {{ src("auth_service/src/auth_service/infrastructure/repositories/users_repo.py") }}) but because a restrictive charset avoids any downstream ambiguity in logs, URL routing, and file names.
+- **Password 12–128.** Twelve is a common minimum-that-doesn't-feel-punitive. 128 is a hard upper bound to keep bcrypt hashing time predictable (though bcrypt itself truncates at 72 bytes — see {{ src("02-shared-security/passwords.md", text="../02-shared-security/passwords.md", anchor="what-this-does-not-defend-against") }}).
 - **No `role` field.** Role is hardcoded to `customer` at the route layer.
 
 ### `LoginRequest`
@@ -108,4 +108,4 @@ If a second delivery mechanism ever appears (CLI, gRPC), it applies its own edge
 - `test_register_rejects_bad_username` — 422 on username with SQL fragment.
 - `test_register_forbids_role_field_from_request` — 422 on unknown `role` field.
 
-All in [test_integration.py](../../auth_service/tests/test_integration.py).
+All in {{ src("auth_service/tests/test_integration.py") }}.

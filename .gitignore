@@ -46,3 +46,6 @@ pg_data/
 caddy_data/
 caddy_config/
 backups/
+
+# mkdocs build output
+site/

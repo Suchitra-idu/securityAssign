@@ -23,6 +23,8 @@ theme:
 
 plugins:
   - search
+  - macros:
+      module_name: docs_macros
 
 markdown_extensions:
   - pymdownx.highlight:
@@ -76,3 +78,4 @@ nav:
 
 extra:
   version: 1.0
+  branch: main

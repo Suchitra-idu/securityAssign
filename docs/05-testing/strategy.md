@@ -1,6 +1,6 @@
 # Testing strategy
 
-TDD strictly on the security-critical core; lighter testing on plumbing. The rule comes from [../../CLAUDE.md](../../CLAUDE.md):
+TDD strictly on the security-critical core; lighter testing on plumbing. The rule comes from {{ src("CLAUDE.md", text="../../CLAUDE.md") }}:
 
 > **Test first**: shared security module and authorization checks.
 >
@@ -10,14 +10,14 @@ TDD strictly on the security-critical core; lighter testing on plumbing. The rul
 
 Test-first is slow up front. On a 14-day build we spend that cost only where the payback is real:
 
-- **Security primitives.** A wrong answer here is a vulnerability. Writing the test first forces us to state the security property precisely ("a token signed with an attacker's key must fail verification") before writing the primitive. It also means the tests double as the readable specification of the crypto boundary — [contract 1](../01-architecture/contracts.md) is essentially "read the tests".
+- **Security primitives.** A wrong answer here is a vulnerability. Writing the test first forces us to state the security property precisely ("a token signed with an attacker's key must fail verification") before writing the primitive. It also means the tests double as the readable specification of the crypto boundary — {{ src("01-architecture/contracts.md", text="contract 1") }} is essentially "read the tests".
 - **Authorization checks.** Same logic. Getting "customer cannot see admin data" wrong is a real bug that a passing HTTP smoke test could hide.
 
 For plumbing (route wiring, DB access, container config), TDD mostly re-tests the framework. Not worth the time on this schedule.
 
 ## What that looks like in practice
 
-### Shared security module — 21 tests, test-first ([shared_security/tests/](../../shared_security/tests/))
+### Shared security module — 21 tests, test-first ({{ src("shared_security/tests/", text="shared_security/tests/") }})
 
 Every primitive:
 - Round-trip test: `verify(sign(x)) == x`, `decrypt(encrypt(x)) == x`.
@@ -26,11 +26,11 @@ Every primitive:
 
 The tests were written before the implementation. The commit history shows this.
 
-### Auth service, application layer — 23 tests, test-first ([auth_service/tests/test_register.py](../../auth_service/tests/test_register.py), etc.)
+### Auth service, application layer — 23 tests, test-first ({{ src("auth_service/tests/test_register.py", text="auth_service/tests/test_register.py") }}, etc.)
 
 The three use cases (register, login, refresh) each got a full test file before the use-case code was written. Every test runs against fake ports — no HTTP, no Postgres, no key material loaded from disk. Time to run: ~7 seconds.
 
-### Auth service, infrastructure — 11 integration tests, *not* test-first ([test_integration.py](../../auth_service/tests/test_integration.py))
+### Auth service, infrastructure — 11 integration tests, *not* test-first ({{ src("auth_service/tests/test_integration.py") }})
 
 Written after the FastAPI app + Pydantic schemas were wired. Uses `TestClient` for real HTTP. Uses fake ports (injected via the `deps_factory` override) so no Postgres is required. Covers:
 
@@ -43,11 +43,11 @@ Not TDD because these tests would mostly assert on FastAPI's own behaviour if wr
 
 ### Postgres integration — not yet built
 
-The Postgres repos and the `PostgresAuditLog` chain-lock behaviour are covered only by manual smoke testing (`docker compose up`). Automated Postgres tests (via testcontainers-python or a compose profile) are a follow-up — [flag 6](../../flags.md).
+The Postgres repos and the `PostgresAuditLog` chain-lock behaviour are covered only by manual smoke testing (`docker compose up`). Automated Postgres tests (via testcontainers-python or a compose profile) are a follow-up — {{ src("flags.md", text="flag 6") }}.
 
 ## Tests as spec, not tests as coverage
 
-The shared_security tests are consciously designed as the readable specification of the crypto boundary. Person B (who owns banking service) reads these tests to understand exactly what each shared function does — Person B does not write them. From [../../DEV_GUIDE.md](../../DEV_GUIDE.md):
+The shared_security tests are consciously designed as the readable specification of the crypto boundary. Person B (who owns banking service) reads these tests to understand exactly what each shared function does — Person B does not write them. From {{ src("DEV_GUIDE.md", text="../../DEV_GUIDE.md") }}:
 
 > The tests here do double duty. They are also the readable specification of the crypto boundary that Person B builds against.
 

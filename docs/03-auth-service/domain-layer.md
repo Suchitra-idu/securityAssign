@@ -2,7 +2,7 @@
 
 Pure data + errors. If you deleted every non-stdlib import tomorrow, this layer would not change.
 
-Location: [auth_service/src/auth_service/domain/](../../auth_service/src/auth_service/domain/).
+Location: {{ src("auth_service/src/auth_service/domain/", text="auth_service/src/auth_service/domain/") }}.
 
 ## Files
 
@@ -19,8 +19,8 @@ class User:
     role: Role
 ```
 
-- **`id`** — UUIDv4 string. Assigned by [register()](../../auth_service/src/auth_service/application/register.py) at creation, never mutated. Used as the `sub` claim in access tokens.
-- **`username`** — user-supplied display identifier. Charset and length enforced at the HTTP boundary by [schemas.py](../../auth_service/src/auth_service/infrastructure/schemas.py). Uniqueness enforced by the users table.
+- **`id`** — UUIDv4 string. Assigned by {{ src("auth_service/src/auth_service/application/register.py", text="register()") }} at creation, never mutated. Used as the `sub` claim in access tokens.
+- **`username`** — user-supplied display identifier. Charset and length enforced at the HTTP boundary by {{ src("auth_service/src/auth_service/infrastructure/schemas.py") }}. Uniqueness enforced by the users table.
 - **`password_hash`** — bcrypt hash string. Never plaintext, ever.
 - **`role`** — literal `"customer"` or `"admin"`. Type-checked and enforced by the database's `CHECK (role IN ('customer', 'admin'))` constraint.
 
@@ -50,12 +50,12 @@ class InvalidCredentials(Exception): pass
 class InvalidRefreshToken(Exception): pass
 ```
 
-Three failure modes. Each is raised from exactly one use case (register, login, refresh respectively) and translated to HTTP 409/401/401 in [app.py](../../auth_service/src/auth_service/infrastructure/app.py).
+Three failure modes. Each is raised from exactly one use case (register, login, refresh respectively) and translated to HTTP 409/401/401 in {{ src("auth_service/src/auth_service/infrastructure/app.py") }}.
 
 **Why so few errors?** CLAUDE.md's "no defensive checks for conditions that cannot happen inside trusted internal code" applies. We do not need `InvalidRole`, `UserNotFound`, `RepositoryUnavailable` because:
 
 - Role is a literal type — bad values are caught by pydantic at the boundary and by DB `CHECK`, not by the domain.
-- User-not-found is folded into `InvalidCredentials` so the auth failure mode is timing-consistent (in principle — see [flag 1](../../flags.md) for the current gap).
+- User-not-found is folded into `InvalidCredentials` so the auth failure mode is timing-consistent (in principle — see {{ src("flags.md", text="flag 1") }} for the current gap).
 - Repository unavailability is not a domain error — it is a 500 from Postgres, and the infrastructure layer handles it as an infrastructure failure.
 
 ## What the domain layer does not have
@@ -79,4 +79,4 @@ You should see nothing besides `dataclasses` and `typing`. Any other import here
 
 ## Tests that pin behaviour of the domain layer
 
-There are no dedicated domain tests. The domain layer is trivial — it holds only data shapes. All meaningful behaviour is exercised via the application-layer tests ([test_register.py](../../auth_service/tests/test_register.py), etc.), which construct `User` and `RefreshRecord` values directly.
+There are no dedicated domain tests. The domain layer is trivial — it holds only data shapes. All meaningful behaviour is exercised via the application-layer tests ({{ src("auth_service/tests/test_register.py") }}, etc.), which construct `User` and `RefreshRecord` values directly.

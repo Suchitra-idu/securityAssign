@@ -11,7 +11,7 @@ def compute_chain_hash(previous_hash: bytes, record: bytes) -> bytes
 def verify_chain(chain: list[tuple[bytes, bytes]]) -> bool
 ```
 
-Implementation: [audit_chain.py](../../shared_security/src/shared_security/audit_chain.py).
+Implementation: {{ src("shared_security/src/shared_security/audit_chain.py") }}.
 
 - `compute_chain_hash(prev, record) = SHA256(prev || record)`.
 - `verify_chain(chain)` walks the chain from `GENESIS_HASH` and returns `False` if any stored hash disagrees.
@@ -42,13 +42,13 @@ Signing would give non-repudiation ("this record came from this signer"), but si
 
 The primitive takes arbitrary `bytes`. The auth service serialises each event dict with `shared_security.canonical.canonical_json_bytes` before hashing. Canonicalisation matters because verification recomputes the hash from the reconstructed record — if the reconstruction produces different bytes, verification fails.
 
-See [../03-auth-service/audit-log-durability.md](../03-auth-service/audit-log-durability.md) for how the auth service actually persists the chain.
+See {{ src("03-auth-service/audit-log-durability.md", text="../03-auth-service/audit-log-durability.md") }} for how the auth service actually persists the chain.
 
 ## Concurrency
 
 Two concurrent writers reading `prev_hash` at the same time would both derive `new_hash` from the same predecessor, then both insert. The second insertion's `prev_hash` claim would be wrong — the chain would fork.
 
-The primitive itself does not solve this. The *auth service* solves it by acquiring `LOCK TABLE audit_log IN SHARE ROW EXCLUSIVE MODE` inside the audit write transaction, which serialises writers without blocking readers. See [audit_log.py](../../auth_service/src/auth_service/infrastructure/audit_log.py).
+The primitive itself does not solve this. The *auth service* solves it by acquiring `LOCK TABLE audit_log IN SHARE ROW EXCLUSIVE MODE` inside the audit write transaction, which serialises writers without blocking readers. See {{ src("auth_service/src/auth_service/infrastructure/audit_log.py") }}.
 
 ## What this defends against
 
@@ -64,7 +64,7 @@ The primitive itself does not solve this. The *auth service* solves it by acquir
 
 ## Tests that pin this behaviour
 
-[test_audit_chain.py](../../shared_security/tests/test_audit_chain.py):
+{{ src("shared_security/tests/test_audit_chain.py") }}:
 
 - Verify passes on a correctly built chain of several records.
 - Verify passes on the empty chain.
@@ -74,6 +74,6 @@ The primitive itself does not solve this. The *auth service* solves it by acquir
 
 ## Usage sites in the current build
 
-- [PostgresAuditLog](../../auth_service/src/auth_service/infrastructure/audit_log.py) — auth service's persistent audit sink. Every register, login (success and failure), and refresh (success and failure) event is chained.
+- {{ src("auth_service/src/auth_service/infrastructure/audit_log.py", text="PostgresAuditLog") }} — auth service's persistent audit sink. Every register, login (success and failure), and refresh (success and failure) event is chained.
 
 Banking service will use the same primitive for its data-change audit log when built.

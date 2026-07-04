@@ -1,8 +1,8 @@
 # Environment variables
 
-All auth_service configuration is env-driven. All vars use the `AUTH_` prefix. Sourced by [Config](../../auth_service/src/auth_service/infrastructure/config.py) via `pydantic-settings`.
+All auth_service configuration is env-driven. All vars use the `AUTH_` prefix. Sourced by {{ src("auth_service/src/auth_service/infrastructure/config.py", text="Config") }} via `pydantic-settings`.
 
-An env template lives at [../../deploy/compose/.env.example](../../deploy/compose/.env.example).
+An env template lives at {{ src("deploy/compose/.env.example", text="../../deploy/compose/.env.example") }}.
 
 ## Required vars
 
@@ -31,7 +31,7 @@ python -c "from shared_security.tokens import generate_signing_keypair; priv, pu
 Guidance:
 - **Never check in.** `.gitignore` excludes `.env`.
 - **Not persistent across environments.** Prod, staging, and dev each get their own keypair. If you generate a new keypair, all existing tokens (both access and refresh) become unverifiable.
-- **In production, prefer a Docker secret or a mounted file** over an env var. Env vars are visible to anyone who can inspect the container (`docker inspect`, `ps eww`). See [../../flags.md](../../flags.md#8-private-key-handling-in-production).
+- **In production, prefer a Docker secret or a mounted file** over an env var. Env vars are visible to anyone who can inspect the container (`docker inspect`, `ps eww`). See {{ src("flags.md", text="../../flags.md", anchor="8-private-key-handling-in-production") }}.
 
 ### `AUTH_SIGNING_PUBLIC_KEY_PEM`
 
@@ -39,7 +39,7 @@ PEM-encoded Ed25519 public key. The other half of the keypair.
 
 Format: multi-line SubjectPublicKeyInfo PEM.
 
-Served at `GET /public-key`. See [../03-auth-service/flow-public-key.md](../03-auth-service/flow-public-key.md).
+Served at `GET /public-key`. See {{ src("03-auth-service/flow-public-key.md", text="../03-auth-service/flow-public-key.md") }}.
 
 **Must be generated from the same keypair as the private key.** If they don't match, freshly-signed tokens will fail verification on the banking side (when built). No runtime check catches this — verification just fails.
 
@@ -67,7 +67,7 @@ Pool holds at least this many connections open at all times, avoiding the setup 
 
 Psycopg3 connection pool maximum size. Default `10`.
 
-**Important context**: each in-flight request holds **two** connections (main + audit — see [../03-auth-service/audit-log-durability.md](../03-auth-service/audit-log-durability.md)). So max concurrent requests ≈ `AUTH_POOL_MAX_SIZE / 2`. Bump for higher-throughput deployments.
+**Important context**: each in-flight request holds **two** connections (main + audit — see {{ src("03-auth-service/audit-log-durability.md", text="../03-auth-service/audit-log-durability.md") }}). So max concurrent requests ≈ `AUTH_POOL_MAX_SIZE / 2`. Bump for higher-throughput deployments.
 
 ## Ignored vars
 
@@ -84,5 +84,5 @@ Precedence, highest to lowest:
 
 ## Vars that will be added later
 
-- `AUTH_INITIAL_ADMIN_USERNAME` / `AUTH_INITIAL_ADMIN_PASSWORD` — for the admin bootstrap ([flag 2](../../flags.md)).
+- `AUTH_INITIAL_ADMIN_USERNAME` / `AUTH_INITIAL_ADMIN_PASSWORD` — for the admin bootstrap ({{ src("flags.md", text="flag 2") }}).
 - Anything Caddy / Coraza / fail2ban configuration needs when those land.
