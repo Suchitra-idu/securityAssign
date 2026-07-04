@@ -9,19 +9,23 @@ The assignment lists security points that count toward the grade (see {{ src("CL
 
 ## Points
 
-### 1. TLS 1.3, client → proxy ❌
-Requires Caddy + certificate setup. Not started.
+### 1. TLS 1.3, client → proxy ✅
+Caddy 2.11 terminates TLS on `:443` (published as host `:8443`) with a cert issued by its built-in local CA (`tls internal`). Confirmed with `openssl s_client`: `Protocol: TLSv1.3`, cipher `TLS_AES_128_GCM_SHA256`, issuer `Caddy Local Authority - ECC Intermediate`. HTTP on `:80` returns a 301 to HTTPS. See {{ src("proxy/caddy/Caddyfile") }} and {{ src("docs/06-proxy/overview.md", text="proxy overview") }}.
 
-### 2. Firewall, network isolation, no published database port 🟡
-Compose file leaves Postgres without a `ports:` block, so it is only reachable inside the internal Docker network. See {{ src("deploy/compose/docker-compose.yml", text="../../deploy/compose/docker-compose.yml") }}.
+Production upgrade: swap the `localhost` site block for a real hostname and Caddy auto-obtains from Let's Encrypt (`tls internal` becomes `tls admin@example.com`).
 
-Gap: the network is currently `internal: false` because auth_service must be reachable externally until Caddy fronts it. Flip to `internal: true` once Caddy lands ({{ src("flags.md", text="flag 7") }}).
+### 2. Firewall, network isolation, no published database port ✅
+Compose has two networks: `edge` (bridge, Caddy only, publishes 8080/8443) and `internal` (`internal: true`, auth + postgres). Neither auth nor postgres has a `ports:` block. Confirmed with `docker ps`: postgres shows `5432/tcp` and auth shows `8000/tcp` — container ports only, no host bindings. A raw TCP connect from the host to `127.0.0.1:5432` refuses. See {{ src("deploy/compose/docker-compose.yml") }}.
 
-### 3. WAF, Coraza on the OWASP core rule set ❌
-Not built. Fallback path per DEV_GUIDE if time runs short: Caddy rate-limiting only.
+### 3. WAF, Coraza on the OWASP core rule set 🟡
+Coraza WAF is deployed as a Caddy plugin via `xcaddy` build, loaded with OWASP Core Rule Set v4.16.0. Confirmed matching SQL injection (`rule_id: 942100`) and other CRS categories during smoke testing.
 
-### 4. HTTPS, proxy → services ❌
-Depends on Caddy. Not built.
+Gap: runs in `SecRuleEngine DetectionOnly` mode — the WAF logs rule hits but does not block, to avoid locking out legitimate traffic before rules are tuned against our JSON API. Switch to `On` once tuning is done ({{ src("flags.md", text="flag 10") }}). See {{ src("proxy/coraza/coraza.conf") }} and {{ src("docs/06-proxy/overview.md", text="proxy overview") }}.
+
+### 4. HTTPS, proxy → services 🟡
+Caddy reverse-proxies to `http://auth:8000` inside the `internal` Docker network. The client-facing hop (browser → Caddy) is TLS 1.3; the internal hop (Caddy → auth) is currently plaintext. Docker's internal network isolation is the practical transport-security guarantee for now — traffic never leaves the Docker bridge — but this is a partial closure of the security point.
+
+Gap: add self-signed cert to auth and flip Caddy's `reverse_proxy` to `https://auth:8000` with `tls_insecure_skip_verify` ({{ src("flags.md", text="flag 11") }}). mTLS is the production upgrade, documented in DEV_GUIDE as future work ({{ src("flags.md", text="flag 12") }}).
 
 ### 5. Password hashing + token signing (auth service) ✅
 - **Password hashing** — bcrypt. Implementation: {{ src("shared_security/src/shared_security/passwords.py") }}. Tests: {{ src("shared_security/tests/test_passwords.py") }}. See {{ src("02-shared-security/passwords.md", text="../02-shared-security/passwords.md") }}.
@@ -58,4 +62,4 @@ Backup script and encrypted storage not built.
 - **fail2ban filter / jail configuration not shipped** ({{ src("flags.md", text="flag 3") }}).
 
 ## Summary
-Of the 12 numbered points plus IDS: 3 are done, 3 are partial (with concrete follow-ups in flags.md), and 7 depend on components not built yet (WAF, TLS, banking_service, backup). The done and partial points are the ones the auth-side owner (Person A) has committed to and tested; the others are on the schedule but were out of scope for this doc.
+Of the 12 numbered points plus IDS: **5 done, 4 partial** (each with a concrete follow-up in flags.md), and 4 depend on banking_service or backups. The proxy layer landing has moved TLS 1.3, network isolation, WAF, and HTTPS proxy→service from "not built" to done/partial in one delivery.

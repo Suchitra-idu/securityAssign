@@ -21,20 +21,62 @@ services:
       dockerfile: auth_service/Dockerfile
     environment:
       AUTH_DATABASE_URL: postgresql://${POSTGRES_USER:-auth}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-auth}
-      AUTH_SIGNING_PRIVATE_KEY_PEM: ${AUTH_SIGNING_PRIVATE_KEY_PEM}
-      AUTH_SIGNING_PUBLIC_KEY_PEM: ${AUTH_SIGNING_PUBLIC_KEY_PEM}
+      # Inline key material (fine for dev). For production, drop these
+      # and switch to the Docker-secret block below.
+      AUTH_SIGNING_PRIVATE_KEY_PEM: ${AUTH_SIGNING_PRIVATE_KEY_PEM:-}
+      AUTH_SIGNING_PUBLIC_KEY_PEM: ${AUTH_SIGNING_PUBLIC_KEY_PEM:-}
       AUTH_ACCESS_TTL_SECONDS: ${AUTH_ACCESS_TTL_SECONDS:-300}
       AUTH_REFRESH_TTL_SECONDS: ${AUTH_REFRESH_TTL_SECONDS:-86400}
+      AUTH_INITIAL_ADMIN_USERNAME: ${AUTH_INITIAL_ADMIN_USERNAME:-}
+      AUTH_INITIAL_ADMIN_PASSWORD: ${AUTH_INITIAL_ADMIN_PASSWORD:-}
+      # Uncomment when using secret files instead of inline PEM.
+      # AUTH_SIGNING_PRIVATE_KEY_PATH: /run/secrets/auth_signing_private_key
+      # AUTH_SIGNING_PUBLIC_KEY_PATH: /run/secrets/auth_signing_public_key
+    # secrets:
+    #   - auth_signing_private_key
+    #   - auth_signing_public_key
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - internal
 
+  caddy:
+    build:
+      context: ../..
+      dockerfile: proxy/caddy/Dockerfile
+    ports:
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - auth
+    networks:
+      - edge
+      - internal
+
 networks:
+  # Public-facing network for Caddy only. Bridge with published ports.
+  edge:
+    driver: bridge
+  # Everything else. internal: true blocks outbound internet from these
+  # containers — Postgres and auth cannot reach the outside world, only
+  # each other and Caddy.
   internal:
     driver: bridge
-    internal: false
+    internal: true
 
 volumes:
   pg_data:
+  caddy_data:
+  caddy_config:
+
+# Docker secrets — uncomment along with the `secrets:` block on the auth
+# service above to swap inline PEM env vars for on-disk secret files.
+# secrets:
+#   auth_signing_private_key:
+#     file: ../secrets/auth_signing_private_key.pem
+#   auth_signing_public_key:
+#     file: ../secrets/auth_signing_public_key.pem

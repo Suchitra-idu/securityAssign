@@ -1,0 +1,58 @@
+{
+    admin off
+    auto_https disable_redirects
+    order coraza_waf first
+    order rate_limit before reverse_proxy
+
+    log default {
+        output stdout
+        format console
+        level INFO
+    }
+}
+
+# HTTP -> HTTPS redirect
+:80 {
+    redir https://{host}{uri} permanent
+}
+
+# Client-facing HTTPS. Caddy generates a local CA and issues a cert for
+# localhost. Browsers will warn until the CA is trusted; curl -k works.
+# In production this becomes a real hostname with Let's Encrypt.
+localhost {
+    tls internal
+
+    # Web Application Firewall. Runs in DetectionOnly during the demo so
+    # a mis-tuned rule cannot lock legitimate traffic out; switch to
+    # SecRuleEngine On in coraza.conf once the OWASP CRS is tuned for
+    # our JSON API.
+    coraza_waf {
+        directives `
+            Include /etc/coraza/coraza.conf
+            Include /etc/coraza/crs-setup.conf
+            Include /etc/coraza/rules/*.conf
+        `
+    }
+
+    # Per-client rate limit. Sixty requests per minute is generous for a
+    # human user and tight enough that a bruteforce or credential-stuffing
+    # loop hits it fast.
+    rate_limit {
+        zone per_ip {
+            key {remote_host}
+            events 60
+            window 1m
+        }
+    }
+
+    reverse_proxy https://auth:8000 {
+        # Auth serves a self-signed cert baked into its image (CN=auth).
+        # Caddy trusts it explicitly rather than validating against a CA
+        # bundle; mTLS is the production upgrade per DEV_GUIDE.
+        transport http {
+            tls_insecure_skip_verify
+        }
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-Proto https
+    }
+}

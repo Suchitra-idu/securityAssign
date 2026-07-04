@@ -8,18 +8,24 @@ One page. Who talks to whom, where the keys live, what's in the box.
                      ┌───────────────────┐
                      │    HTTP client    │
                      └─────────┬─────────┘
-                               │  (uvicorn: 8000)
-                               │
-                     ┌─────────▼─────────┐
-                     │   auth_service    │  FastAPI (sync)
-                     │  ────────────     │
-                     │  Domain           │  User, Role, RefreshRecord, errors
-                     │  Application      │  register / login / refresh use cases
-                     │  Infrastructure   │  FastAPI routes, Postgres repos,
-                     │                   │  hash-chained audit sink, config
-                     └─────────┬─────────┘
-                               │  psycopg3 pool (2 conns/request:
-                               │  txn + autocommit audit)
+                               │ HTTPS (TLS 1.3, port 8443)
+                               │ or HTTP (port 8080) → 301 → HTTPS
+             ┌─────────────────▼─────────────────┐
+             │           Caddy 2.11              │  edge network
+             │  ───────────────────────────────  │  (Docker bridge, published)
+             │  tls internal (Caddy Local CA)    │
+             │  coraza_waf (OWASP CRS v4, DetectionOnly)
+             │  rate_limit (60/min per IP)       │
+             └─────────────────┬─────────────────┘
+                               │ HTTP over internal network
+             ┌─────────────────▼─────────────────┐   internal network
+             │          auth_service             │   (internal: true —
+             │  ───────────────────────────────  │    no route to host,
+             │  FastAPI (sync)                   │    no outbound internet)
+             │  Domain / Application / Infra     │
+             └─────────────────┬─────────────────┘
+                               │ psycopg3 pool (2 conns/request:
+                               │ txn + autocommit audit)
                      ┌─────────▼─────────┐
                      │    PostgreSQL     │  users, refresh_tokens, audit_log
                      └───────────────────┘
@@ -29,7 +35,7 @@ One page. Who talks to whom, where the keys live, what's in the box.
       audit_chain · canonical_json
 ```
 
-The **banking service**, **Caddy + Coraza WAF**, **fail2ban IDS**, and **encrypted backup job** are in {{ src("DEV_GUIDE.md", text="../../DEV_GUIDE.md") }} but not yet built. When they land they will sit in front of auth_service (Caddy terminating TLS, WAF filtering, fail2ban watching auth logs) and beside it (banking_service, holding only the public key).
+**Banking service**, **fail2ban IDS**, and **encrypted backup job** from {{ src("DEV_GUIDE.md", text="../../DEV_GUIDE.md") }} are not yet built. When they land, banking sits beside auth on the `internal` network holding only the public key; fail2ban tails the auth log lines that already exist; backup runs against Postgres.
 
 ## The four codebases (planned)
 

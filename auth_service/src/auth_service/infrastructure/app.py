@@ -1,8 +1,9 @@
 import logging
 from collections.abc import Callable, Iterator
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 
+from auth_service.application.bootstrap import ensure_admin
 from auth_service.application.deps import AuthDeps
 from auth_service.application.login import login
 from auth_service.application.refresh import refresh
@@ -32,6 +33,16 @@ logger = logging.getLogger("auth")
 DepsFactory = Callable[[], Iterator[AuthDeps]]
 
 
+def _client_ip(request: Request) -> str:
+    # Trust X-Forwarded-For only because Caddy is our only upstream and it
+    # sets X-Real-IP from the direct TCP peer. Take the first hop; the
+    # rest of a chained XFF list is client-supplied and unauthenticated.
+    fwd = request.headers.get("x-real-ip") or request.headers.get("x-forwarded-for")
+    if fwd:
+        return fwd.split(",", 1)[0].strip()
+    return request.client.host if request.client else "-"
+
+
 def create_app(config: Config, deps_factory: DepsFactory | None = None) -> FastAPI:
     if deps_factory is None:
         pool = build_pool(
@@ -53,41 +64,53 @@ def create_app(config: Config, deps_factory: DepsFactory | None = None) -> FastA
                         settings=config.tokens(),
                     )
 
+        if config.initial_admin_username and config.initial_admin_password:
+            for deps in deps_factory():
+                ensure_admin(
+                    username=config.initial_admin_username,
+                    password=config.initial_admin_password,
+                    deps=deps,
+                )
+                break
+
     app = FastAPI(title="Auth Service")
 
     @app.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
     def register_route(
-        body: RegisterRequest, deps: AuthDeps = Depends(deps_factory)
+        request: Request, body: RegisterRequest, deps: AuthDeps = Depends(deps_factory)
     ) -> UserResponse:
+        ip = _client_ip(request)
         try:
             user = register(
                 username=body.username, password=body.password, role="customer", deps=deps
             )
         except UsernameTaken:
             raise HTTPException(status.HTTP_409_CONFLICT, "username taken")
-        logger.info("REGISTER user_id=%s username=%s", user.id, user.username)
+        logger.info("REGISTER ip=%s user_id=%s username=%s", ip, user.id, user.username)
         return UserResponse(user_id=user.id, username=user.username, role=user.role)
 
     @app.post("/login", response_model=TokenResponse)
     def login_route(
-        body: LoginRequest, deps: AuthDeps = Depends(deps_factory)
+        request: Request, body: LoginRequest, deps: AuthDeps = Depends(deps_factory)
     ) -> TokenResponse:
+        ip = _client_ip(request)
         try:
             pair = login(username=body.username, password=body.password, deps=deps)
         except InvalidCredentials:
-            logger.warning("LOGIN_FAILED username=%s", body.username)
+            logger.warning("LOGIN_FAILED ip=%s username=%s", ip, body.username)
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid credentials")
-        logger.info("LOGIN_SUCCESS username=%s", body.username)
+        logger.info("LOGIN_SUCCESS ip=%s username=%s", ip, body.username)
         return TokenResponse(access_token=pair.access, refresh_token=pair.refresh)
 
     @app.post("/refresh", response_model=TokenResponse)
     def refresh_route(
-        body: RefreshRequest, deps: AuthDeps = Depends(deps_factory)
+        request: Request, body: RefreshRequest, deps: AuthDeps = Depends(deps_factory)
     ) -> TokenResponse:
+        ip = _client_ip(request)
         try:
             pair = refresh(token=body.refresh_token, deps=deps)
         except InvalidRefreshToken:
-            logger.warning("REFRESH_FAILED")
+            logger.warning("REFRESH_FAILED ip=%s", ip)
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid refresh token")
         return TokenResponse(access_token=pair.access, refresh_token=pair.refresh)
 

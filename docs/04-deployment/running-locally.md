@@ -4,7 +4,7 @@ Two ways to run auth_service on your machine: Docker Compose (closest to product
 
 ## Option 1: Docker Compose
 
-Runs Postgres + auth on an internal Docker network. Postgres is **not published** to the host — this is the same network isolation the assignment security points call for.
+Runs Caddy + auth + Postgres on two Docker networks: `edge` (Caddy only, published to host) and `internal` (`internal: true`, auth + postgres, no route to the outside world). **Only Caddy is reachable from the host.**
 
 ### One-time setup
 
@@ -19,43 +19,48 @@ Fill in `.env`. The signing keypair is the fiddly bit — generate it with:
 /path/to/.venv/bin/python -c "from shared_security.tokens import generate_signing_keypair; priv, pub = generate_signing_keypair(); print('PRIV=' + repr(priv)); print('PUB=' + repr(pub))"
 ```
 
-Copy the two strings into `.env` as `AUTH_SIGNING_PRIVATE_KEY_PEM` and `AUTH_SIGNING_PUBLIC_KEY_PEM`. Watch out for shell-quoting — the values contain literal `\n`; wrap in double quotes.
+Or, with openssl (no Python venv needed):
+
+```
+openssl genpkey -algorithm ED25519 -out /tmp/priv.pem
+openssl pkey -in /tmp/priv.pem -pubout -out /tmp/pub.pem
+```
+
+Copy the two PEMs into `.env` as `AUTH_SIGNING_PRIVATE_KEY_PEM` and `AUTH_SIGNING_PUBLIC_KEY_PEM`. Watch out for shell-quoting — the values contain literal `\n`; wrap in double quotes.
 
 ### Bring it up
 
 ```
-docker compose up --build
+docker compose up -d --build
 ```
 
-This builds the auth_service image from {{ src("auth_service/Dockerfile", text="../../auth_service/Dockerfile") }}, starts Postgres, waits for its healthcheck, and boots auth_service. Auth applies the schema on startup ({{ src("auth_service/src/auth_service/infrastructure/db.py", text="apply_schema") }}) so the tables exist even on first boot.
+Three services build/pull:
+- **caddy** — custom Caddy 2.11 built by `xcaddy` with `coraza-caddy` (WAF) and `caddy-ratelimit` plugins, with OWASP CRS v4 baked in. First build takes ~2-3 minutes because Go compiles Caddy from source with the plugins. Subsequent builds are cached.
+- **auth** — the FastAPI service.
+- **postgres** — official `postgres:16-alpine`.
 
-Auth is currently not front-fronted by Caddy, so if you want to hit it from your host, add a `ports:` block to the `auth` service in {{ src("deploy/compose/docker-compose.yml", text="../../deploy/compose/docker-compose.yml") }} *temporarily* while developing:
+On boot, auth applies the schema ({{ src("auth_service/src/auth_service/infrastructure/db.py", text="apply_schema") }}) and Caddy generates a local CA + issues a cert for `localhost`.
 
-```yaml
-  auth:
-    ports:
-      - "8000:8000"
-```
-
-Then:
+Hit it:
 
 ```
-curl http://localhost:8000/health
-curl -X POST http://localhost:8000/register \
+# curl -k because Caddy's local CA isn't in your system trust store
+curl -k https://localhost:8443/health
+# HTTP redirects to HTTPS
+curl -kL http://localhost:8080/health
+
+curl -k -X POST https://localhost:8443/register \
      -H 'Content-Type: application/json' \
      -d '{"username":"alice","password":"correct-horse-battery"}'
 ```
 
-Remove the `ports:` block before committing anything — production shape is "Caddy is the only exposed service".
+### Confirming isolation
 
-### Confirming Postgres is not reachable from the host
+- **Postgres from host**: `docker ps` shows `compose-postgres-1` with `5432/tcp` only, no host binding. A raw TCP connect to `localhost:5432` will refuse.
+- **Auth from host**: same — `8000/tcp` only, no host mapping. Only Caddy publishes ports (`8080`, `8443`).
+- **From inside**: `docker compose exec caddy sh` → `wget -O- http://auth:8000/health` works.
 
-```
-nc -vz localhost 5432       # should fail: no route to host
-docker compose exec postgres psql -U auth -d auth   # works: same internal network
-```
-
-This is the "no published database port" security point in practice.
+If a host process (e.g. `mkdocs serve`) already occupies port 8000 or 8080, a raw TCP connect will succeed — but that's the host process, not our stack. `docker ps` is the definitive check.
 
 ### Tearing down
 

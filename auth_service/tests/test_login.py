@@ -2,6 +2,7 @@ import pytest
 
 from shared_security.tokens import verify_token
 
+from auth_service.application import login as login_module
 from auth_service.application.login import login
 from auth_service.domain.errors import InvalidCredentials
 
@@ -73,3 +74,24 @@ def test_login_failure_for_unknown_user_still_audited(bag):
     failures = [e for e in bag.audit.events if e["event"] == "login_failed"]
     assert len(failures) == 1
     assert failures[0]["username"] == "ghost"
+
+
+def test_login_unknown_user_still_calls_bcrypt(bag, monkeypatch):
+    calls = []
+    original = login_module.verify_password
+
+    def spy(password, hashed):
+        calls.append((password, hashed))
+        return original(password, hashed)
+
+    monkeypatch.setattr(login_module, "verify_password", spy)
+
+    with pytest.raises(InvalidCredentials):
+        login(username="ghost", password="anything-anything", deps=bag.deps)
+
+    # bcrypt was consulted even though no user existed. The stored hash is
+    # the module's dummy hash, so response time on this branch matches the
+    # wrong-password branch and does not leak user existence.
+    assert len(calls) == 1
+    assert calls[0][0] == "anything-anything"
+    assert calls[0][1].startswith("$2b$")

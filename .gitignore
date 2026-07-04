@@ -49,3 +49,6 @@ backups/
 
 # mkdocs build output
 site/
+
+# Local compose overrides
+docker-compose.override.yml
