@@ -28,6 +28,14 @@ openssl pkey -in /tmp/priv.pem -pubout -out /tmp/pub.pem
 
 Copy the two PEMs into `.env` as `AUTH_SIGNING_PRIVATE_KEY_PEM` and `AUTH_SIGNING_PUBLIC_KEY_PEM`. Watch out for shell-quoting — the values contain literal `\n`; wrap in double quotes.
 
+Also generate the dev CA + Postgres server cert **before the first build** — auth and banking Dockerfiles COPY the CA at build time so psycopg can `verify-ca` against it:
+
+```
+./tls/generate.sh
+```
+
+Outputs `ca.crt`, `server.crt`, `server.key` into `deploy/compose/tls/` (all gitignored). Re-run only when you want to rotate; the script is a no-op if the files exist.
+
 ### Bring it up
 
 ```
@@ -132,7 +140,23 @@ These are unauthenticated. Useful for exploring endpoints during development; di
 
 ## What is not in this workflow
 
-- **Caddy / TLS termination** — not built yet.
-- **fail2ban** — not built yet.
-- **Backup job** — not built yet.
 - **Log aggregation** — logs go to stdout; Docker captures them. Nothing shipped anywhere.
+
+## Optional: exercising the encrypted-backup service
+
+The compose stack includes a `backup` sidecar. It writes ciphertext-only `.sql.age` files to a named volume on `BACKUP_INTERVAL_SECONDS` (default hourly). To force a backup immediately and then run a restore drill:
+
+```
+docker compose exec backup /usr/local/bin/backup
+docker compose exec backup ls -la /backups
+
+# restore the newest auth dump into a fresh database
+LATEST=$(docker compose exec -T backup sh -c 'ls -1t /backups/auth-*.sql.age | head -1' | tr -d '\r')
+docker compose exec -e BACKUP_AGE_IDENTITY="$(grep '^BACKUP_AGE_IDENTITY=' .env | cut -d= -f2)" \
+    backup /usr/local/bin/restore "$LATEST" auth_restored
+
+# confirm data made it across
+docker compose exec postgres psql -U auth -d auth_restored -c "SELECT username FROM users"
+```
+
+The private identity lives only in `.env` for the demo; a production deployment would keep it offline.

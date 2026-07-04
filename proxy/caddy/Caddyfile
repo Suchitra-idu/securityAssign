@@ -45,14 +45,42 @@ localhost {
         }
     }
 
-    reverse_proxy https://auth:8000 {
-        # Auth serves a self-signed cert baked into its image (CN=auth).
-        # Caddy trusts it explicitly rather than validating against a CA
-        # bundle; mTLS is the production upgrade per DEV_GUIDE.
-        transport http {
-            tls_insecure_skip_verify
+    # Banking is prefixed on /banking/* so both services live behind the
+    # same host without route collisions. Prefix is stripped before the
+    # upstream sees the request.
+    handle_path /banking/* {
+        reverse_proxy https://banking:8000 {
+            transport http {
+                tls_insecure_skip_verify
+            }
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-Proto https
         }
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-Proto https
+    }
+
+    # Auth API on explicit paths. Only these five routes exist on auth;
+    # anything else falls through to the static UI. Keeping the list
+    # explicit means a typo cannot silently proxy random paths into the
+    # auth container.
+    @auth_paths path /register /login /refresh /public-key /health
+    handle @auth_paths {
+        reverse_proxy https://auth:8000 {
+            # Auth serves a self-signed cert baked into its image (CN=auth).
+            # Caddy trusts it explicitly rather than validating against a CA
+            # bundle; mTLS is the production upgrade per DEV_GUIDE.
+            transport http {
+                tls_insecure_skip_verify
+            }
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-Proto https
+        }
+    }
+
+    # Static UI on everything else. SPA-style fallback to index.html so a
+    # direct hit on /ui/anything still lands on the app shell.
+    handle {
+        root * /srv/ui
+        try_files {path} /index.html
+        file_server
     }
 }

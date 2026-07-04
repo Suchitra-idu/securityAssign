@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Secure Bank</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header>
+    <div class="brand">Secure Bank</div>
+    <div class="who" id="who" hidden>
+      <span id="who-name"></span>
+      <span class="role-badge" id="who-role"></span>
+      <button id="logout-btn" type="button">Log out</button>
+    </div>
+  </header>
+
+  <main id="app">
+    <section id="auth-view" class="view">
+      <div class="card">
+        <div class="tabs">
+          <button class="tab active" data-tab="login">Log in</button>
+          <button class="tab" data-tab="register">Register</button>
+        </div>
+
+        <form id="login-form" class="pane active">
+          <label>Username <input name="username" required autocomplete="username"></label>
+          <label>Password <input name="password" type="password" required autocomplete="current-password"></label>
+          <button type="submit">Log in</button>
+          <p class="hint">Admin? Use the credentials seeded via <code>AUTH_INITIAL_ADMIN_*</code>.</p>
+        </form>
+
+        <form id="register-form" class="pane">
+          <label>Username <input name="username" required minlength="3" maxlength="64" autocomplete="username"></label>
+          <label>Password <input name="password" type="password" required minlength="12" autocomplete="new-password"></label>
+          <button type="submit">Create account</button>
+          <p class="hint">Registration creates a <b>customer</b>. Admin roles are seeded server-side.</p>
+        </form>
+
+        <div id="auth-error" class="error" hidden></div>
+      </div>
+    </section>
+
+    <section id="app-view" class="view" hidden>
+      <nav class="side">
+        <button class="nav active" data-nav="accounts">Accounts</button>
+        <button class="nav" data-nav="transfer">Transfer</button>
+        <button class="nav" data-nav="transactions">Transactions</button>
+        <button class="nav admin-only" data-nav="admin">All accounts</button>
+      </nav>
+
+      <div class="content">
+        <div id="accounts-panel" class="panel active">
+          <div class="row-between">
+            <h2>My accounts</h2>
+            <button id="open-account-btn" type="button">Open new account</button>
+          </div>
+          <div id="my-accounts"></div>
+        </div>
+
+        <div id="transfer-panel" class="panel">
+          <h2>Transfer</h2>
+          <form id="transfer-form" class="stack">
+            <label>From account
+              <select name="from_account_id" required></select>
+            </label>
+            <label>To account ID
+              <input name="to_account_id" required placeholder="destination account UUID">
+            </label>
+            <label>Amount
+              <input name="amount" type="number" step="0.01" min="0.01" required placeholder="e.g. 25.00">
+              <span class="hint">In whole currency units. Converted to minor units on send.</span>
+            </label>
+            <button type="submit">Send</button>
+          </form>
+          <div id="transfer-result"></div>
+        </div>
+
+        <div id="transactions-panel" class="panel">
+          <h2>Transactions</h2>
+          <label>Account
+            <select id="tx-account-select"></select>
+          </label>
+          <div id="tx-list"></div>
+        </div>
+
+        <div id="admin-panel" class="panel">
+          <h2>All accounts (admin)</h2>
+          <div id="all-accounts"></div>
+        </div>
+
+        <div id="global-error" class="error" hidden></div>
+        <div id="global-info" class="info" hidden></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>All requests go through Caddy on TLS 1.3. Coraza WAF is active. Banking verifies every token against auth's public key.</span>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

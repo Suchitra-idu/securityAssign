@@ -2,7 +2,7 @@
 
 One page. Who talks to whom, where the keys live, what's in the box.
 
-## Component picture (implemented parts only)
+## Component picture
 
 ```
                      ┌───────────────────┐
@@ -16,54 +16,67 @@ One page. Who talks to whom, where the keys live, what's in the box.
              │  tls internal (Caddy Local CA)    │
              │  coraza_waf (OWASP CRS v4, DetectionOnly)
              │  rate_limit (60/min per IP)       │
-             └─────────────────┬─────────────────┘
-                               │ HTTP over internal network
-             ┌─────────────────▼─────────────────┐   internal network
-             │          auth_service             │   (internal: true —
-             │  ───────────────────────────────  │    no route to host,
-             │  FastAPI (sync)                   │    no outbound internet)
-             │  Domain / Application / Infra     │
-             └─────────────────┬─────────────────┘
-                               │ psycopg3 pool (2 conns/request:
-                               │ txn + autocommit audit)
-                     ┌─────────▼─────────┐
-                     │    PostgreSQL     │  users, refresh_tokens, audit_log
-                     └───────────────────┘
+             │  handle_path /banking/* → banking │
+             │  handle          /*    → auth     │
+             └────────┬───────────────┬──────────┘
+                      │ HTTPS         │ HTTPS
+                      │ (self-signed) │ (self-signed)
+             ┌────────▼────────┐  ┌───▼──────────────┐   internal network
+             │  auth_service   │  │ banking_service  │   (internal: true —
+             │  ─────────────  │  │  ──────────────  │    no route to host,
+             │  private key    │  │  auth pubkey     │    no outbound internet)
+             │  bcrypt         │  │  field crypto    │
+             │  JWT sign       │  │  tx signing key  │
+             └────────┬────────┘  └────────┬─────────┘
+                      │                    │
+                      │ psycopg3 pool      │ psycopg3 pool
+                      │ TLS 1.3            │ TLS 1.3
+                      │ sslmode=verify-ca  │ sslmode=verify-ca
+                      ▼                    ▼
+             ┌─────────────────────────────────────┐
+             │      PostgreSQL 16 (TLS on)         │
+             │  ─────────────────────────────────  │
+             │  hostssl-only pg_hba                │
+             │  database "auth":                   │
+             │    users · refresh_tokens · audit   │
+             │  database "banking":                │
+             │    accounts · transactions · audit  │
+             └─────────────────────────────────────┘
 
-  ─── shared_security (Python package, imported by auth_service) ───
+  ─── shared_security (Python package, imported by both services) ───
       passwords · tokens · field_crypto · transaction_signatures
       audit_chain · canonical_json
 ```
 
-**Banking service**, **fail2ban IDS**, and **encrypted backup job** from {{ src("DEV_GUIDE.md", text="../../DEV_GUIDE.md") }} are not yet built. When they land, banking sits beside auth on the `internal` network holding only the public key; fail2ban tails the auth log lines that already exist; backup runs against Postgres.
+**fail2ban IDS** tails the auth container's log for `LOGIN_FAILED ip=<host>` / `REFRESH_FAILED ip=<host>` lines — filter and jail configs live in {{ src("deploy/fail2ban/") }}. **Encrypted backup sidecar** ({{ src("deploy/backup/") }}) runs a `pg_dump | age` loop on `BACKUP_INTERVAL_SECONDS`, writes ciphertext-only `.sql.age` files to a named volume, and prunes to `BACKUP_RETENTION`.
 
-## The four codebases (planned)
+## The four codebases
 
 Per {{ src("CLAUDE.md", text="../../CLAUDE.md") }}, the repo is designed for four codebases:
 
 1. **shared_security** — cryptographic primitives. Single source of truth. Both services depend on it, neither duplicates. ✅ **built**
 2. **auth_service** — identity, tokens, private signing key. ✅ **built**
-3. **banking_service** — accounts, transactions, only the public key. ❌ not built (Person B)
-4. **proxy + WAF** — Caddy config, Coraza rules. ❌ not built
+3. **banking_service** — accounts, transactions, only the auth public key. ✅ **built**
+4. **proxy + WAF** — Caddy config, Coraza rules. ✅ **built** (Coraza in DetectionOnly — see {{ src("flags.md", text="flag 10") }})
 
-Ownership is split between Person A (shared, auth, proxy, deployment) and Person B (banking). Neither person modifies the other's code. See {{ src("CLAUDE.md", text="../../CLAUDE.md#ownership-split") }}.
+Ownership was designed as Person A (shared, auth, proxy, deployment) and Person B (banking). In this build one contributor delivered both sides; the ownership split still matters for the contracts below because it defines what "changing the crypto boundary" vs "changing a service" looks like. See {{ src("CLAUDE.md", text="../../CLAUDE.md#ownership-split") }}.
 
 ## Where the keys live
 
-- **Ed25519 signing keypair.** Generated by `shared_security.tokens.generate_signing_keypair()`. The **private** key lives only in the auth service ({{ src("auth_service/src/auth_service/infrastructure/config.py") }}, env var `AUTH_SIGNING_PRIVATE_KEY_PEM`). The **public** key is exposed at `GET /public-key`. When banking_service lands it will fetch this at startup and use it to *verify* tokens, but will never see the private key. This split is what makes tokens trustworthy across the service boundary — the banking service cannot forge one.
-- **AES-256-GCM field keys.** Generated by `shared_security.field_crypto.generate_field_key()`. Not currently used by any implemented service (banking will be the first consumer). No key management infra is built yet.
+- **Auth Ed25519 signing keypair.** Generated by `shared_security.tokens.generate_signing_keypair()`. The **private** key lives only in the auth service ({{ src("auth_service/src/auth_service/infrastructure/config.py") }}, env var `AUTH_SIGNING_PRIVATE_KEY_PEM`). The **public** key is exposed at `GET /public-key` and also injected into banking's config as `BANKING_AUTH_PUBLIC_KEY_PEM`. Banking uses it to *verify* tokens; it can never mint one. This split is what makes tokens trustworthy across the service boundary.
+- **Banking Ed25519 transaction-signing keypair.** Owned by banking. Private key at `BANKING_TX_SIGNING_PRIVATE_KEY_PEM`, public at `BANKING_TX_SIGNING_PUBLIC_KEY_PEM`. Signatures over canonical transaction payloads land in the `transactions.signature` column and are re-verified on read. See {{ src("07-banking-service/overview.md", text="../07-banking-service/overview.md") }}.
+- **AES-256-GCM field key.** 32 bytes, provided to banking as hex via `BANKING_FIELD_KEY_HEX` (or a file path). Used inside {{ src("banking_service/src/banking_service/infrastructure/repositories/accounts_repo.py", text="PostgresAccountRepository") }} to encrypt `account_number`, `balance_minor`, and `card_number` on write and decrypt on read.
+- **Postgres server cert + dev CA.** Generated once by {{ src("deploy/compose/tls/generate.sh") }}. The server cert (CN=`postgres`) is baked into the custom Postgres image ({{ src("deploy/compose/postgres/Dockerfile") }}); the CA is baked into auth and banking so they can `sslmode=verify-ca` on every connection. Postgres refuses non-TLS connections via `hostssl`-only {{ src("deploy/compose/postgres/pg_hba.conf") }}.
 
-## Request flow when auth_service is running
+## Request flow: authenticated banking request
 
-For every HTTP request, the FastAPI dependency injector calls a factory that opens **two Postgres connections** from the pool:
-
-1. **Main connection** — wrapped in a transaction that commits on route success, rolls back on any exception raised through the route.
-2. **Audit connection** — set to autocommit. Each audit write is its own tiny transaction. This guarantees audit events persist even when the main transaction rolls back — critical for capturing failed-login attempts. See {{ src("03-auth-service/audit-log-durability.md", text="../03-auth-service/audit-log-durability.md") }} for the full rationale.
-
-The route handler:
-1. Receives Pydantic-validated input (rejects malformed bodies with 422 before any use-case runs).
-2. Calls the application-layer use case, which orchestrates domain rules and calls out through the ports (`UserRepository`, `RefreshTokenStore`, `AuditLog`, `Clock`).
-3. Translates domain errors (`UsernameTaken`, `InvalidCredentials`, `InvalidRefreshToken`) to HTTP status codes (409, 401, 401).
+1. Browser sends `Authorization: Bearer <jwt>` to `https://localhost:8443/banking/accounts/<id>`.
+2. Caddy terminates TLS 1.3, Coraza runs CRS in DetectionOnly (logs rule hits, does not block), rate limiter checks the IP is under 60/min.
+3. Caddy `handle_path /banking/*` strips the prefix and reverse-proxies over HTTPS to `banking:8000` with `X-Real-IP` set.
+4. Banking's `bearer_caller` FastAPI dependency calls `shared_security.tokens.verify_token(bearer, auth_public_key)` — enforces signature, algorithm (`EdDSA`), and `exp`. Any failure → 401 before the route runs.
+5. Route handler opens two Postgres connections (transaction + autocommit audit — same pattern as auth). Application use case calls `require_owner_or_admin(caller, account)` before touching data.
+6. `PostgresAccountRepository.get()` fetches the ciphertext row, decrypts the three sensitive fields, returns a domain `Account`. Route serialises to JSON.
+7. On the way out, audit event `{event: "account_read", account_id, actor_user_id, actor_role, at}` is appended to the hash-chained audit log on the autocommit connection.
 
 ## What each layer does not know
 
@@ -90,4 +103,4 @@ CLAUDE.md is clear: two things must be agreed up front and never changed silentl
 1. **Crypto function boundary** — the public API of shared_security. See [contracts.md](contracts.md).
 2. **Token payload** — the claims auth mints and banking reads. See [contracts.md](contracts.md).
 
-Both are locked here by tests that assert on shape and by the docs under [contracts.md](contracts.md). A change to either requires a conversation between Person A and Person B, not a silent edit.
+Both are locked here by tests that assert on shape (banking's `bearer_caller` rejects malformed / missing / expired tokens; the token payload is asserted in auth's login and refresh tests). A change to either requires a conversation between Person A and Person B, not a silent edit.

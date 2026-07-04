@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-SQL
+    CREATE DATABASE ${BANKING_DB:-banking};
+    GRANT ALL PRIVILEGES ON DATABASE ${BANKING_DB:-banking} TO $POSTGRES_USER;
+SQL

@@ -75,6 +75,8 @@ nav:
       - Strategy: 05-testing/strategy.md
       - What Tests Prove: 05-testing/what-tests-prove.md
       - Running Tests: 05-testing/running-tests.md
+  - Banking Service:
+      - Overview: 07-banking-service/overview.md
   - Proxy / WAF / TLS:
       - Overview: 06-proxy/overview.md
 

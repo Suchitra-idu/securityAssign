@@ -1,6 +1,6 @@
 # Proxy + WAF + TLS
 
-Caddy sits in front of the auth service (and later, banking). It terminates TLS, filters requests through a WAF, rate-limits per client IP, and reverse-proxies to the internal services. **Only Caddy has published ports.** Auth and Postgres live on an `internal: true` Docker network with no way to reach the internet or be reached from outside the compose stack.
+Caddy sits in front of auth and banking. It terminates TLS, filters requests through a WAF, rate-limits per client IP, and reverse-proxies to the internal services. **Only Caddy has published ports.** Auth, banking, and Postgres live on an `internal: true` Docker network with no way to reach the internet or be reached from outside the compose stack.
 
 ## What runs
 
@@ -18,24 +18,27 @@ Caddy sits in front of the auth service (and later, banking). It terminates TLS,
         │  • rate_limit     → 60 events / 1 min per IP
         │  • :80 → 301 → :443                        │
         │                                             │
-        │  reverse_proxy auth:8000                    │
-        └───────────────────┬────────────────────────┘
-                            │ (internal network, HTTP)
-                            ▼
-                   ┌─────────────────┐
-                   │  auth service   │
-                   └────────┬────────┘
-                            │
-                            ▼
-                   ┌─────────────────┐
-                   │   PostgreSQL    │
-                   └─────────────────┘
+        │  handle_path /banking/*  → https://banking:8000
+        │  handle          /*      → https://auth:8000
+        └────────┬─────────────────┬────────────────┘
+                 │ HTTPS           │ HTTPS
+                 │ (self-signed)   │ (self-signed)
+                 ▼                 ▼
+        ┌───────────────┐  ┌────────────────┐
+        │ auth service  │  │ banking service│
+        └───────┬───────┘  └────────┬───────┘
+                │                   │
+                └─────────┬─────────┘
+                          ▼
+                 ┌─────────────────┐
+                 │   PostgreSQL    │  auth DB + banking DB
+                 └─────────────────┘
 ```
 
 ## Files
 
 - {{ src("proxy/caddy/Dockerfile") }} — multi-stage build. Stage 1 uses `caddy:2.11-builder` + `xcaddy` to compile a custom Caddy binary with the Coraza WAF and rate-limit plugins. Stage 2 is the runtime image with the plugins baked in plus the OWASP CRS v4 rule set copied into `/etc/coraza/rules/`.
-- {{ src("proxy/caddy/Caddyfile") }} — Caddy config: TLS on `localhost`, WAF, rate-limit, reverse proxy to `auth:8000`.
+- {{ src("proxy/caddy/Caddyfile") }} — Caddy config: TLS on `localhost`, WAF, rate-limit, `handle_path /banking/*` → `https://banking:8000`, root `handle` → `https://auth:8000`.
 - {{ src("proxy/coraza/coraza.conf") }} — Coraza engine config. Sets `SecRuleEngine DetectionOnly`, JSON request-body parsing, audit log to stdout.
 
 ## Security controls this delivers
@@ -45,7 +48,7 @@ Cross-reference with the {{ src("docs/01-architecture/security-controls.md", tex
 - **Point 1: TLS 1.3, client → proxy** ✅ Caddy uses `tls internal` — an on-the-fly local CA that issues an EC cert for `localhost`. `curl -k` because the CA isn't in the system trust store. Confirmed with `openssl s_client`: `Protocol: TLSv1.3`, cipher `TLS_AES_128_GCM_SHA256`.
 - **Point 2: no published database port** ✅ Postgres has no `ports:` block and is on the `internal: true` network. `nc localhost 5432` refuses.
 - **Point 3: WAF, Coraza on OWASP CRS** 🟡 Runs, matches SQL injection / XSS / RCE / path traversal from CRS. **Currently in `DetectionOnly` mode** so rule mis-tuning cannot lock out legitimate traffic during the demo. Flip to `SecRuleEngine On` in {{ src("proxy/coraza/coraza.conf", text="coraza.conf") }} after tuning is complete.
-- **Point 4: HTTPS, proxy → services** 🟡 Between Caddy and auth is currently **HTTP over the internal Docker network**. Adding HTTPS on the auth service requires a self-signed cert + `tls_insecure_skip_verify` on Caddy's `reverse_proxy` (or shipping Caddy's CA to auth). Flagged as a follow-up in {{ src("flags.md") }}.
+- **Point 4: HTTPS, proxy → services** ✅ Both auth and banking bake a self-signed RSA cert at image build ({{ src("auth_service/Dockerfile") }}, {{ src("banking_service/Dockerfile") }}) and serve on `https://<service>:8000`. Caddy proxies with `tls_insecure_skip_verify` because the internal certs aren't signed by Caddy's CA. mTLS is documented as production future work in DEV_GUIDE.
 
 ## Why DetectionOnly by default
 
@@ -100,7 +103,7 @@ This defends against credential-stuffing (60 login attempts/minute/IP is more th
 
 - **No auth check**. Caddy just proxies; it doesn't inspect JWTs. Auth (and later banking) verify tokens on their side.
 - **No response inspection**. `SecResponseBodyAccess Off` in {{ src("proxy/coraza/coraza.conf", text="coraza.conf") }} — we don't scan responses for leaks. If banking ever returns sensitive fields that should be redacted at the edge, this changes.
-- **No mTLS between Caddy and auth**. Documented as production future work in {{ src("DEV_GUIDE.md") }}. We rely on Docker's internal network isolation as the transport security guarantee for that hop.
+- **No mTLS between Caddy and services**. Documented as production future work in {{ src("DEV_GUIDE.md") }}. Caddy trusts the self-signed certs on auth and banking via `tls_insecure_skip_verify`; the transport is TLS 1.3 but there's no client-cert step in either direction.
 - **No connection tracking / DDoS protection**. Rate limit is per-IP with a naive sliding window. A distributed attacker can outrun it.
 
 ## Trade-offs made explicit
@@ -109,7 +112,7 @@ This defends against credential-stuffing (60 login attempts/minute/IP is more th
 |----------|-----------|
 | `tls internal` instead of Let's Encrypt | Browsers warn; `curl -k` needed. Trades production UX for zero-setup demo. Production would swap the site block for a real hostname. |
 | DetectionOnly for CRS | Can't demonstrate 403 blocks without config change. Trades demo drama for zero-risk-of-lockout. |
-| HTTP between Caddy and auth | Simpler ops. Trades formal "point 4 done" for "point 4 partial + follow-up flagged". |
+| Self-signed certs on auth + banking | Caddy has to skip verification. Trades a proper internal CA for simpler build. mTLS is the production upgrade. |
 | No mTLS | Documented in DEV_GUIDE as a release valve. Trades assessment point mTLS-would-hit for build-time. |
 | Rate limit at 60/min | Enough for a human, tight against automation. Trades UX for security. |
 

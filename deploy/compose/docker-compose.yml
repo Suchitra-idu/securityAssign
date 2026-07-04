@@ -1,14 +1,33 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    build:
+      context: .
+      dockerfile: postgres/Dockerfile
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-auth}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-auth}
+      BANKING_DB: ${BANKING_DB:-banking}
     volumes:
       - pg_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
     networks:
       - internal
+    # TLS is enforced via pg_hba.conf (hostssl-only) baked into the image.
+    # Server cert / key / ca / hba are copied to /var/lib/postgresql/ at
+    # build time. -c flags below point Postgres at them at start.
+    command:
+      - postgres
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/var/lib/postgresql/server.crt
+      - -c
+      - ssl_key_file=/var/lib/postgresql/server.key
+      - -c
+      - ssl_ca_file=/var/lib/postgresql/ca.crt
+      - -c
+      - hba_file=/var/lib/postgresql/pg_hba.conf
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-auth} -d ${POSTGRES_DB:-auth}"]
       interval: 5s
@@ -20,7 +39,7 @@ services:
       context: ../..
       dockerfile: auth_service/Dockerfile
     environment:
-      AUTH_DATABASE_URL: postgresql://${POSTGRES_USER:-auth}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-auth}
+      AUTH_DATABASE_URL: postgresql://${POSTGRES_USER:-auth}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-auth}?sslmode=verify-ca&sslrootcert=/app/tls/pg-ca.crt
       # Inline key material (fine for dev). For production, drop these
       # and switch to the Docker-secret block below.
       AUTH_SIGNING_PRIVATE_KEY_PEM: ${AUTH_SIGNING_PRIVATE_KEY_PEM:-}
@@ -41,6 +60,54 @@ services:
     networks:
       - internal
 
+  banking:
+    build:
+      context: ../..
+      dockerfile: banking_service/Dockerfile
+    environment:
+      BANKING_DATABASE_URL: postgresql://${POSTGRES_USER:-auth}:${POSTGRES_PASSWORD}@postgres:5432/${BANKING_DB:-banking}?sslmode=verify-ca&sslrootcert=/app/tls/pg-ca.crt
+      # Auth's public key. Same PEM auth signs with. In production banking
+      # would fetch this from GET /public-key at startup; env var keeps
+      # bootstrapping deterministic here.
+      BANKING_AUTH_PUBLIC_KEY_PEM: ${AUTH_SIGNING_PUBLIC_KEY_PEM:-}
+      # Banking's own Ed25519 keypair for transaction signatures.
+      BANKING_TX_SIGNING_PRIVATE_KEY_PEM: ${BANKING_TX_SIGNING_PRIVATE_KEY_PEM:-}
+      BANKING_TX_SIGNING_PUBLIC_KEY_PEM: ${BANKING_TX_SIGNING_PUBLIC_KEY_PEM:-}
+      # 32-byte AES-256-GCM field key, hex-encoded.
+      BANKING_FIELD_KEY_HEX: ${BANKING_FIELD_KEY_HEX:-}
+      # Same secret-file swap pattern as auth.
+      # BANKING_AUTH_PUBLIC_KEY_PATH: /run/secrets/auth_signing_public_key
+      # BANKING_TX_SIGNING_PRIVATE_KEY_PATH: /run/secrets/banking_tx_signing_private_key
+      # BANKING_TX_SIGNING_PUBLIC_KEY_PATH: /run/secrets/banking_tx_signing_public_key
+      # BANKING_FIELD_KEY_PATH: /run/secrets/banking_field_key
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+
+  backup:
+    build:
+      context: ../..
+      dockerfile: deploy/backup/Dockerfile
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-auth}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # age recipient (public key). Ciphertext-only container: the private
+      # key is not baked in — restore requires it to be supplied at exec
+      # time via `docker compose exec -e BACKUP_AGE_IDENTITY=... backup`.
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-3600}
+      BACKUP_RETENTION: ${BACKUP_RETENTION:-7}
+    volumes:
+      - backup_data:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+
   caddy:
     build:
       context: ../..
@@ -53,6 +120,7 @@ services:
       - caddy_config:/config
     depends_on:
       - auth
+      - banking
     networks:
       - edge
       - internal
@@ -62,8 +130,8 @@ networks:
   edge:
     driver: bridge
   # Everything else. internal: true blocks outbound internet from these
-  # containers — Postgres and auth cannot reach the outside world, only
-  # each other and Caddy.
+  # containers — Postgres, auth, and banking cannot reach the outside
+  # world, only each other and Caddy.
   internal:
     driver: bridge
     internal: true
@@ -72,11 +140,18 @@ volumes:
   pg_data:
   caddy_data:
   caddy_config:
+  backup_data:
 
-# Docker secrets — uncomment along with the `secrets:` block on the auth
+# Docker secrets — uncomment along with the `secrets:` block on each
 # service above to swap inline PEM env vars for on-disk secret files.
 # secrets:
 #   auth_signing_private_key:
 #     file: ../secrets/auth_signing_private_key.pem
 #   auth_signing_public_key:
 #     file: ../secrets/auth_signing_public_key.pem
+#   banking_tx_signing_private_key:
+#     file: ../secrets/banking_tx_signing_private_key.pem
+#   banking_tx_signing_public_key:
+#     file: ../secrets/banking_tx_signing_public_key.pem
+#   banking_field_key:
+#     file: ../secrets/banking_field_key.hex

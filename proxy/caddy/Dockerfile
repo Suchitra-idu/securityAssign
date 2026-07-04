@@ -23,6 +23,10 @@ COPY --from=builder /usr/bin/caddy /usr/bin/caddy
 COPY proxy/coraza/coraza.conf /etc/coraza/coraza.conf
 COPY proxy/caddy/Caddyfile /etc/caddy/Caddyfile
 
+# Static UI. Vanilla HTML/JS/CSS — no build step. Served by Caddy on
+# the root path; every non-API request falls through to file_server.
+COPY ui /srv/ui
+
 # CRS rules reference their .data files by relative path (e.g.
 # "scanners-user-agents.data"). Coraza resolves those relative to the
 # process working directory, so the WAF loads clean only if we start

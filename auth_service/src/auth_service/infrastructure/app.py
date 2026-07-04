@@ -65,13 +65,16 @@ def create_app(config: Config, deps_factory: DepsFactory | None = None) -> FastA
                     )
 
         if config.initial_admin_username and config.initial_admin_password:
+            # Iterate the generator to completion — breaking early would
+            # throw GeneratorExit through the `with main_conn.transaction()`
+            # block, which psycopg treats as an error and rolls the insert
+            # back. Letting the loop end naturally commits the seed.
             for deps in deps_factory():
                 ensure_admin(
                     username=config.initial_admin_username,
                     password=config.initial_admin_password,
                     deps=deps,
                 )
-                break
 
     app = FastAPI(title="Auth Service")
 
