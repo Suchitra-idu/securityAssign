@@ -14,7 +14,7 @@ class TransferRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     from_account_id: str = Field(min_length=1, max_length=64)
-    to_account_id: str = Field(min_length=1, max_length=64)
+    to_account_number: str = Field(pattern=r"^\d{8,32}$")
     amount_minor: int = Field(gt=0, le=10_000_000_00)
 
 

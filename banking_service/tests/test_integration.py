@@ -115,7 +115,7 @@ def test_transfer_flow(client, bag):
     r = client.post(
         "/transfers",
         headers=alice,
-        json={"from_account_id": src["id"], "to_account_id": dst["id"], "amount_minor": 2_500},
+        json={"from_account_id": src["id"], "to_account_number": dst["account_number"], "amount_minor": 2_500},
     )
     assert r.status_code == 201
     body = r.json()
@@ -139,6 +139,6 @@ def test_transfer_flow(client, bag):
     blocked = client.post(
         "/transfers",
         headers=alice,
-        json={"from_account_id": src["id"], "to_account_id": dst["id"], "amount_minor": 100},
+        json={"from_account_id": src["id"], "to_account_number": dst["account_number"], "amount_minor": 100},
     )
     assert blocked.status_code == 409

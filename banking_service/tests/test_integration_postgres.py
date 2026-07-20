@@ -103,7 +103,7 @@ def test_field_encryption_round_trip_across_transactions(deps_scope):
         reloaded = deps.accounts.get(account.id)
     assert reloaded is not None
     assert reloaded.account_number == original_number
-    assert reloaded.balance_minor == 0
+    assert reloaded.balance_minor == account.balance_minor
     assert reloaded.card_number == account.card_number
 
 
@@ -142,6 +142,12 @@ def test_tampered_ciphertext_fails_to_decrypt(deps_scope, pool, field_key):
         with pytest.raises(DecryptionError):
             deps.accounts.get(account.id)
 
+    # Remove the tampered row so later tests that scan the table (e.g.
+    # get_by_account_number) don't blow up on decryption of the garbage.
+    with pool.connection() as conn:
+        conn.execute("DELETE FROM accounts WHERE id = %s", (account.id,))
+        conn.commit()
+
 
 def test_transfer_persists_signature_and_updates_balances(deps_scope):
     alice = Caller(user_id=_uuid(), role="customer")
@@ -156,7 +162,7 @@ def test_transfer_persists_signature_and_updates_balances(deps_scope):
     with deps_scope() as deps:
         tx = transfer(
             from_account_id=seeded_src.id,
-            to_account_id=dst.id,
+            to_account_number=dst.account_number,
             amount_minor=2_500,
             caller=alice,
             deps=deps,
@@ -167,7 +173,7 @@ def test_transfer_persists_signature_and_updates_balances(deps_scope):
         reloaded_dst = deps.accounts.get(dst.id)
         stored = deps.transactions.list_for_account(seeded_src.id)
     assert reloaded_src.balance_minor == 7_500
-    assert reloaded_dst.balance_minor == 2_500
+    assert reloaded_dst.balance_minor == dst.balance_minor + 2_500
     assert len(stored) == 1
     assert stored[0].signature == tx.signature
 
@@ -185,7 +191,7 @@ def test_audit_chain_valid_end_to_end(deps_scope, pool):
     with deps_scope() as deps:
         transfer(
             from_account_id=src.id,
-            to_account_id=dst.id,
+            to_account_number=dst.account_number,
             amount_minor=1_000,
             caller=alice,
             deps=deps,

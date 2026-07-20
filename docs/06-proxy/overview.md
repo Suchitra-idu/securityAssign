@@ -19,7 +19,8 @@ Caddy sits in front of auth and banking. It terminates TLS, filters requests thr
         │  • :80 → 301 → :443                        │
         │                                             │
         │  handle_path /banking/*  → https://banking:8000
-        │  handle          /*      → https://auth:8000
+        │  handle @auth_paths      → https://auth:8000
+        │  handle          /*      → file_server /srv/ui (baked UI)
         └────────┬─────────────────┬────────────────┘
                  │ HTTPS           │ HTTPS
                  │ (self-signed)   │ (self-signed)
@@ -38,7 +39,8 @@ Caddy sits in front of auth and banking. It terminates TLS, filters requests thr
 ## Files
 
 - {{ src("proxy/caddy/Dockerfile") }} — multi-stage build. Stage 1 uses `caddy:2.11-builder` + `xcaddy` to compile a custom Caddy binary with the Coraza WAF and rate-limit plugins. Stage 2 is the runtime image with the plugins baked in plus the OWASP CRS v4 rule set copied into `/etc/coraza/rules/`.
-- {{ src("proxy/caddy/Caddyfile") }} — Caddy config: TLS on `localhost`, WAF, rate-limit, `handle_path /banking/*` → `https://banking:8000`, root `handle` → `https://auth:8000`.
+- {{ src("proxy/caddy/Caddyfile") }} — Caddy config: TLS on `localhost`, WAF, rate-limit, `handle_path /banking/*` → `https://banking:8000`, `handle @auth_paths` → `https://auth:8000` on the five explicit API paths, root `handle` → `file_server` on `/srv/ui/` for the static UI.
+- {{ src("ui/") }} — vanilla HTML / JS / CSS UI, no build step. Copied into the Caddy image at `/srv/ui/` at build time. Same-origin with both backends, so no CORS.
 - {{ src("proxy/coraza/coraza.conf") }} — Coraza engine config. Sets `SecRuleEngine DetectionOnly`, JSON request-body parsing, audit log to stdout.
 
 ## Security controls this delivers

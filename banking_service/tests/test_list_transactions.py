@@ -15,7 +15,7 @@ def test_owner_lists_own_transactions(bag, alice, bob):
     dst = open_account(caller=bob, deps=bag.deps)
     transfer(
         from_account_id=src.id,
-        to_account_id=dst.id,
+        to_account_number=dst.account_number,
         amount_minor=1_000,
         caller=alice,
         deps=bag.deps,
@@ -33,7 +33,7 @@ def test_other_customer_cannot_list(bag, alice, bob):
     dst = open_account(caller=bob, deps=bag.deps)
     transfer(
         from_account_id=src.id,
-        to_account_id=dst.id,
+        to_account_number=dst.account_number,
         amount_minor=1_000,
         caller=alice,
         deps=bag.deps,
@@ -48,7 +48,7 @@ def test_tampered_stored_amount_reports_signature_invalid(bag, alice, bob, admin
     dst = open_account(caller=bob, deps=bag.deps)
     tx = transfer(
         from_account_id=src.id,
-        to_account_id=dst.id,
+        to_account_number=dst.account_number,
         amount_minor=1_000,
         caller=alice,
         deps=bag.deps,

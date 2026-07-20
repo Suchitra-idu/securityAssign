@@ -51,6 +51,9 @@ On boot, auth applies the schema ({{ src("auth_service/src/auth_service/infrastr
 
 Hit it:
 
+- **Browser UI**: open `https://localhost:8443/` — you'll get a security warning because Caddy's local CA isn't in your system trust store; accept it. The UI covers register → login → open account → transfer → transactions, plus admin-only list-all + freeze if you log in as the seeded admin (`admin` / `admin-demo-do-not-ship` from `.env`).
+- **Curl** (for scripting / smoke tests):
+
 ```
 # curl -k because Caddy's local CA isn't in your system trust store
 curl -k https://localhost:8443/health

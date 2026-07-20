@@ -1,8 +1,17 @@
 # Banking service
 
-The banking service owns accounts, transactions, and the freeze workflow. It holds **only the auth service's public key**, so it can verify tokens but never mint them. Every route requires a valid bearer token; every use case runs a role check before touching data; every sensitive column on disk is AES-256-GCM ciphertext; every transfer produces an Ed25519 signature over a canonical payload.
+The banking service owns accounts, transactions, and the freeze / unfreeze workflow. It holds **only the auth service's public key**, so it can verify tokens but never mint them. Every route requires a valid bearer token; every use case runs a role check before touching data; every sensitive column on disk is AES-256-GCM ciphertext; every transfer produces an Ed25519 signature over a canonical payload.
 
 Same three-layer shape as auth: domain / application / infrastructure. Same "crypto through a boundary, keys in config" pattern.
+
+Deep dives:
+- [Domain layer](domain-layer.md)
+- [Application layer](application-layer.md)
+- [Infrastructure layer](infrastructure-layer.md)
+- [Input validation](input-validation.md)
+- [Flow: open account](flow-open-account.md)
+- [Flow: transfer](flow-transfer.md)
+- [Flow: freeze / unfreeze](flow-freeze-unfreeze.md)
 
 ## What it delivers
 
@@ -24,7 +33,8 @@ Behind Caddy at `/banking/*`. Prefix is stripped upstream, so the service intern
 | GET | `/accounts/{id}` | owner or admin | Read a single account. |
 | GET | `/accounts` | admin | List all accounts. |
 | POST | `/accounts/{id}/freeze` | admin | Freeze an account (idempotent). Frozen accounts reject transfers on both sides. |
-| POST | `/transfers` | source owner or admin | Debit source, credit destination, sign the transaction, audit. |
+| POST | `/accounts/{id}/unfreeze` | admin | Unfreeze an account (idempotent). Restores transfer eligibility. |
+| POST | `/transfers` | source owner or admin | Debit source, credit destination, sign the transaction, audit. Destination is identified by `account_number`, not id. |
 | GET | `/transactions/{account_id}` | owner or admin | List transactions for an account with `signature_valid` per row. |
 | GET | `/health` | none | Liveness. |
 
@@ -104,19 +114,21 @@ Rationale in full: {{ src("03-auth-service/audit-log-durability.md", text="../03
 
 ## Verified end-to-end
 
-- **43 tests** in the banking suite, including 5 real-Postgres integration tests via `testcontainers-python` in {{ src("banking_service/tests/test_integration_postgres.py") }}.
+- **49 tests** in the banking suite, including 5 real-Postgres integration tests via `testcontainers-python` in {{ src("banking_service/tests/test_integration_postgres.py") }}.
 - **Live smoke test** through Caddy on `https://localhost:8443`:
     - Cross-customer read → 403.
     - Customer listing all accounts → 403.
-    - Seeded balance of 100 000 minor units, `psql SELECT balance_minor` returned ciphertext bytes.
-    - Transfer 2500 minor units, response body includes `signature_valid: true`, source went 100 000 → 97 500, destination 0 → 2500.
+    - Newly opened account carries a seeded balance of 10 000 minor units ($100); `psql SELECT balance_minor` returned ciphertext bytes.
+    - Transfer 2500 minor units, response body includes `signature_valid: true`, source went 10 000 → 7 500, destination 10 000 → 12 500.
     - `UPDATE transactions SET amount_minor = 999999` directly in Postgres → next list response flipped `signature_valid` to `false` without touching the signature bytes.
+    - Admin freeze then unfreeze; `account_frozen` and `account_unfrozen` events appear in the audit log; a transfer that was blocked with `AccountFrozen` succeeded after unfreeze.
+    - Malformed `account_id` (non-UUID) returned a clean 404 instead of a 500 (see {{ src("banking_service/src/banking_service/infrastructure/repositories/accounts_repo.py", text="PostgresAccountRepository.get") }}).
     - `verify_chain` over the `banking.audit_log` table returned `True` at end of run.
 
 ## What this service does *not* do
 
 - **No login.** Auth owns identity. Banking receives whichever token auth minted.
 - **No key rotation.** Auth pubkey, TX signing key, and field key are all static across restarts. Rotation is a separate work item.
-- **No admin credit / debit endpoint.** Balance seed in the demo is direct DB manipulation. A production system would have a deposit path with its own signed audit event.
+- **No admin credit / debit endpoint.** Balance seed in the demo is the fixed `NEW_ACCOUNT_STARTING_BALANCE_MINOR = 100_00` applied at account open. A production system would have a deposit path with its own signed audit event.
 - **No transaction search or reporting.** Field encryption of the balance column blocks aggregate SQL; adding that is a design decision, not just code.
 - **No mTLS to Postgres.** Assessment point 8 is a follow-up ({{ src("flags.md", text="../../flags.md") }} flag 16).

@@ -34,13 +34,15 @@ localhost {
         `
     }
 
-    # Per-client rate limit. Sixty requests per minute is generous for a
-    # human user and tight enough that a bruteforce or credential-stuffing
-    # loop hits it fast.
+    # Per-client rate limit. 300/min is comfortable for real interactive
+    # UI use (a user clicking through accounts + transfers easily produces
+    # 60+ requests in a minute after Playwright/browser cache misses) while
+    # still catching bruteforce or credential-stuffing loops which hit
+    # thousands per minute. Tighten to 60 for headless-API deployments.
     rate_limit {
         zone per_ip {
             key {remote_host}
-            events 60
+            events 300
             window 1m
         }
     }
@@ -76,11 +78,12 @@ localhost {
         }
     }
 
-    # Static UI on everything else. SPA-style fallback to index.html so a
-    # direct hit on /ui/anything still lands on the app shell.
+    # Static UI on everything else. Clean URLs: /app resolves to
+    # /srv/ui/app.html, /styles.css to /srv/ui/styles.css, etc.
+    # Anything else falls through to index.html (the login page).
     handle {
         root * /srv/ui
-        try_files {path} /index.html
+        try_files {path} {path}.html /index.html
         file_server
     }
 }

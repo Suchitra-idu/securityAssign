@@ -20,18 +20,20 @@ from banking_service.domain.transactions import Transaction, transaction_payload
 def transfer(
     *,
     from_account_id: str,
-    to_account_id: str,
+    to_account_number: str,
     amount_minor: int,
     caller: Caller,
     deps: BankingDeps,
 ) -> Transaction:
     if amount_minor <= 0:
         raise InvalidTransfer("amount must be positive")
-    if from_account_id == to_account_id:
-        raise InvalidTransfer("cannot transfer to the same account")
 
     source = _load(deps, from_account_id)
-    destination = _load(deps, to_account_id)
+    destination = deps.accounts.get_by_account_number(to_account_number)
+    if destination is None:
+        raise AccountNotFound
+    if source.id == destination.id:
+        raise InvalidTransfer("cannot transfer to the same account")
 
     if caller.role != "admin" and source.owner_id != caller.user_id:
         raise NotAccountOwner

@@ -1,4 +1,5 @@
 from psycopg import Connection
+from psycopg.errors import DataError, InvalidTextRepresentation
 
 from shared_security.field_crypto import decrypt_field, encrypt_field
 
@@ -11,12 +12,31 @@ class PostgresAccountRepository:
         self._key = field_key
 
     def get(self, account_id: str) -> Account | None:
-        row = self._conn.execute(
-            "SELECT id, owner_id, account_number, balance_minor, card_number, status "
-            "FROM accounts WHERE id = %s",
-            (account_id,),
-        ).fetchone()
+        # A malformed UUID would otherwise raise InvalidTextRepresentation
+        # (bubbles up as HTTP 500). Treat it as "not found" so the route
+        # returns a clean 404. The DataError parent catches both the
+        # invalid-uuid case and the numeric-out-of-range case for the id
+        # column type.
+        try:
+            row = self._conn.execute(
+                "SELECT id, owner_id, account_number, balance_minor, card_number, status "
+                "FROM accounts WHERE id = %s",
+                (account_id,),
+            ).fetchone()
+        except (InvalidTextRepresentation, DataError):
+            return None
         return self._to_account(row)
+
+    def get_by_account_number(self, account_number: str) -> Account | None:
+        # account_number is AES-256-GCM encrypted at rest with a random
+        # nonce per row, so we cannot index or WHERE on the ciphertext.
+        # Scan+decrypt+filter is fine at demo scale. Production would
+        # add a deterministic search hash column (HMAC of the number
+        # under a separate key) to make this a keyed lookup.
+        for account in self.list_all():
+            if account.account_number == account_number:
+                return account
+        return None
 
     def get_by_owner(self, owner_id: str) -> list[Account]:
         rows = self._conn.execute(

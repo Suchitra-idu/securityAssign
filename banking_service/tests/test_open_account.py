@@ -1,10 +1,10 @@
-from banking_service.application.open_account import open_account
+from banking_service.application.open_account import NEW_ACCOUNT_STARTING_BALANCE_MINOR, open_account
 
 
-def test_open_account_assigns_owner_and_zero_balance(bag, alice):
+def test_open_account_assigns_owner_and_starting_balance(bag, alice):
     account = open_account(caller=alice, deps=bag.deps)
     assert account.owner_id == alice.user_id
-    assert account.balance_minor == 0
+    assert account.balance_minor == NEW_ACCOUNT_STARTING_BALANCE_MINOR
     assert account.status == "active"
     assert len(account.account_number) == 12
     assert len(account.card_number) == 16

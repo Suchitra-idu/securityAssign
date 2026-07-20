@@ -19,6 +19,9 @@ class FakeAccountRepo:
     def get(self, account_id: str) -> Account | None:
         return self._by_id.get(account_id)
 
+    def get_by_account_number(self, account_number: str) -> Account | None:
+        return next((a for a in self._by_id.values() if a.account_number == account_number), None)
+
     def get_by_owner(self, owner_id: str) -> list[Account]:
         return [a for a in self._by_id.values() if a.owner_id == owner_id]
 
@@ -122,6 +125,8 @@ def admin() -> Caller:
 
 
 def credit(bag: Bag, account: Account, amount_minor: int) -> Account:
-    updated = replace(account, balance_minor=account.balance_minor + amount_minor)
+    # Set (not add) — tests pass the exact starting balance they want and
+    # should not have to know about the account-opening seed balance.
+    updated = replace(account, balance_minor=amount_minor)
     bag.accounts.update(updated)
     return updated

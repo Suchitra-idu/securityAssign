@@ -41,7 +41,7 @@ def test_frozen_source_blocks_transfer(bag, alice, bob, admin):
     with pytest.raises(AccountFrozen):
         transfer(
             from_account_id=src.id,
-            to_account_id=dst.id,
+            to_account_number=dst.account_number,
             amount_minor=100,
             caller=alice,
             deps=bag.deps,
@@ -56,7 +56,7 @@ def test_frozen_destination_blocks_transfer(bag, alice, bob, admin):
     with pytest.raises(AccountFrozen):
         transfer(
             from_account_id=src.id,
-            to_account_id=dst.id,
+            to_account_number=dst.account_number,
             amount_minor=100,
             caller=alice,
             deps=bag.deps,

@@ -29,7 +29,11 @@ plugins:
 markdown_extensions:
   - pymdownx.highlight:
       use_pygments: true
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.tabbed:
@@ -44,6 +48,7 @@ nav:
   - Home: index.md
   - Architecture:
       - Overview: 01-architecture/overview.md
+      - Big Picture (diagrams): 01-architecture/big-picture.md
       - Clean Architecture: 01-architecture/clean-architecture.md
       - Contracts: 01-architecture/contracts.md
       - Security Controls: 01-architecture/security-controls.md
@@ -77,6 +82,13 @@ nav:
       - Running Tests: 05-testing/running-tests.md
   - Banking Service:
       - Overview: 07-banking-service/overview.md
+      - Domain Layer: 07-banking-service/domain-layer.md
+      - Application Layer: 07-banking-service/application-layer.md
+      - Infrastructure Layer: 07-banking-service/infrastructure-layer.md
+      - Input Validation: 07-banking-service/input-validation.md
+      - Open Account Flow: 07-banking-service/flow-open-account.md
+      - Transfer Flow: 07-banking-service/flow-transfer.md
+      - Freeze / Unfreeze Flow: 07-banking-service/flow-freeze-unfreeze.md
   - Proxy / WAF / TLS:
       - Overview: 06-proxy/overview.md
 

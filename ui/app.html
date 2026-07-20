@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Secure Bank</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="page-app">
+  <header class="topbar">
+    <a class="brand-lockup topbar-brand" href="/app">
+      <div class="brand-mark">SB</div>
+      <div class="brand-name">Secure Bank</div>
+    </a>
+    <div class="topbar-right">
+      <div class="user-pill">
+        <div class="user-avatar" id="user-avatar">?</div>
+        <div class="user-meta">
+          <div class="user-name" id="user-name">…</div>
+          <div class="user-role" id="user-role"></div>
+        </div>
+      </div>
+      <button id="logout-btn" class="btn-ghost">Log out</button>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <nav class="sidebar">
+      <button class="nav-item active" data-nav="accounts">
+        <span class="nav-icon">◈</span> Accounts
+      </button>
+      <button class="nav-item" data-nav="transfer">
+        <span class="nav-icon">→</span> Transfer
+      </button>
+      <button class="nav-item" data-nav="transactions">
+        <span class="nav-icon">≡</span> Transactions
+      </button>
+      <button class="nav-item admin-only" data-nav="admin">
+        <span class="nav-icon">★</span> All accounts
+      </button>
+    </nav>
+
+    <main class="content">
+      <section id="accounts-view" class="view active">
+        <div class="view-head">
+          <div>
+            <h1>My accounts</h1>
+          </div>
+          <button id="open-account-btn" class="btn-primary">＋ Open new account</button>
+        </div>
+        <div id="my-accounts" class="account-grid"></div>
+      </section>
+
+      <section id="transfer-view" class="view">
+        <div class="view-head">
+          <div>
+            <h1>Send money</h1>
+          </div>
+        </div>
+        <div class="transfer-card">
+          <form id="transfer-form">
+            <label>
+              <span>From account</span>
+              <select name="from_account_id" required></select>
+            </label>
+            <label>
+              <span>To account number</span>
+              <input name="to_account_number" required inputmode="numeric" pattern="\d{8,32}" placeholder="Recipient's account number">
+            </label>
+            <label>
+              <span>Amount</span>
+              <div class="amount-input">
+                <span class="currency">$</span>
+                <input name="amount" type="number" step="0.01" min="0.01" required placeholder="0.00">
+              </div>
+            </label>
+            <button type="submit" class="btn-primary">Send</button>
+          </form>
+          <div id="transfer-result"></div>
+        </div>
+      </section>
+
+      <section id="transactions-view" class="view">
+        <div class="view-head">
+          <div>
+            <h1>Transactions</h1>
+          </div>
+          <label class="inline-select">
+            <span>Account</span>
+            <select id="tx-account-select"></select>
+          </label>
+        </div>
+        <div id="tx-list" class="tx-list"></div>
+      </section>
+
+      <section id="admin-view" class="view">
+        <div class="view-head">
+          <div>
+            <h1>All accounts</h1>
+          </div>
+          <button id="reload-admin-btn" class="btn-ghost">Reload</button>
+        </div>
+        <div id="all-accounts" class="account-grid"></div>
+      </section>
+
+      <div id="global-error" class="banner banner-error" hidden></div>
+      <div id="global-info" class="banner banner-info" hidden></div>
+    </main>
+  </div>
+
+  <script src="/session.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

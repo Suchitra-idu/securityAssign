@@ -11,6 +11,7 @@ Reference documentation for the secure banking application. Covers **only what i
 - **fail2ban IDS** — filter, jail, and README under {{ src("deploy/fail2ban/") }}. Watches the auth log for `LOGIN_FAILED ip=<host>` / `REFRESH_FAILED ip=<host>` lines.
 - **Docker packaging** — `Dockerfile` per service, a Docker Compose file that runs Caddy on the `edge` network and Postgres + auth + banking + backup on `internal: true` (no route to host, no outbound internet). Postgres init script creates a separate `banking` database on first boot.
 - **TLS to Postgres** — custom Postgres image bakes a dev CA + server cert. `hostssl`-only `pg_hba.conf` rejects any plain-text connection. Services connect with `sslmode=verify-ca`. `pg_stat_ssl` confirms every pool connection is TLS 1.3.
+- **Static UI** — vanilla HTML / JS / CSS single-page app under {{ src("ui/") }}, baked into the Caddy image and served on the root. Same-origin with the API, so no CORS surface. Covers the full customer + admin flow (register, login, open account, transfer, transactions, freeze). Access token held in memory only; refresh in `sessionStorage` with auto-rotate on 401.
 
 ## Reading order
 
@@ -26,6 +27,7 @@ If you have never seen this repo before, read in this order:
 
 ### Architecture
 - [Overview](01-architecture/overview.md)
+- [Big picture — the whole system in diagrams](01-architecture/big-picture.md)
 - [Clean architecture applied](01-architecture/clean-architecture.md)
 - [Security controls map](01-architecture/security-controls.md)
 - [Locked contracts](01-architecture/contracts.md)
@@ -53,6 +55,13 @@ If you have never seen this repo before, read in this order:
 
 ### Banking service
 - [Overview](07-banking-service/overview.md)
+- [Domain layer](07-banking-service/domain-layer.md)
+- [Application layer](07-banking-service/application-layer.md)
+- [Infrastructure layer](07-banking-service/infrastructure-layer.md)
+- [Input validation](07-banking-service/input-validation.md)
+- [Flow: open account](07-banking-service/flow-open-account.md)
+- [Flow: transfer](07-banking-service/flow-transfer.md)
+- [Flow: freeze / unfreeze](07-banking-service/flow-freeze-unfreeze.md)
 
 ### Proxy / WAF / TLS
 - [Overview](06-proxy/overview.md)

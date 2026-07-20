@@ -53,28 +53,31 @@ def create_app(config: Config, deps_factory: DepsFactory | None = None) -> FastA
         apply_schema(pool)
 
         def deps_factory() -> Iterator[AuthDeps]:
+            # No outer transaction wrapper here: the write routes wrap
+            # their own work in `with deps.transaction():` so commit
+            # happens BEFORE the response is sent. FastAPI's yield-dep
+            # teardown runs after the response is delivered, so keeping
+            # the transaction here would let a quick auto-login race the
+            # register commit and see 401.
             with pool.connection() as main_conn, pool.connection() as audit_conn:
                 audit_conn.autocommit = True
-                with main_conn.transaction():
-                    yield AuthDeps(
-                        users=PostgresUserRepository(main_conn),
-                        refresh_tokens=PostgresRefreshTokenStore(main_conn),
-                        audit=PostgresAuditLog(audit_conn),
-                        clock=SystemClock(),
-                        settings=config.tokens(),
-                    )
+                yield AuthDeps(
+                    users=PostgresUserRepository(main_conn),
+                    refresh_tokens=PostgresRefreshTokenStore(main_conn),
+                    audit=PostgresAuditLog(audit_conn),
+                    clock=SystemClock(),
+                    settings=config.tokens(),
+                    transaction=main_conn.transaction,
+                )
 
         if config.initial_admin_username and config.initial_admin_password:
-            # Iterate the generator to completion — breaking early would
-            # throw GeneratorExit through the `with main_conn.transaction()`
-            # block, which psycopg treats as an error and rolls the insert
-            # back. Letting the loop end naturally commits the seed.
             for deps in deps_factory():
-                ensure_admin(
-                    username=config.initial_admin_username,
-                    password=config.initial_admin_password,
-                    deps=deps,
-                )
+                with deps.transaction():
+                    ensure_admin(
+                        username=config.initial_admin_username,
+                        password=config.initial_admin_password,
+                        deps=deps,
+                    )
 
     app = FastAPI(title="Auth Service")
 
@@ -84,9 +87,10 @@ def create_app(config: Config, deps_factory: DepsFactory | None = None) -> FastA
     ) -> UserResponse:
         ip = _client_ip(request)
         try:
-            user = register(
-                username=body.username, password=body.password, role="customer", deps=deps
-            )
+            with deps.transaction():
+                user = register(
+                    username=body.username, password=body.password, role="customer", deps=deps
+                )
         except UsernameTaken:
             raise HTTPException(status.HTTP_409_CONFLICT, "username taken")
         logger.info("REGISTER ip=%s user_id=%s username=%s", ip, user.id, user.username)
@@ -98,7 +102,8 @@ def create_app(config: Config, deps_factory: DepsFactory | None = None) -> FastA
     ) -> TokenResponse:
         ip = _client_ip(request)
         try:
-            pair = login(username=body.username, password=body.password, deps=deps)
+            with deps.transaction():
+                pair = login(username=body.username, password=body.password, deps=deps)
         except InvalidCredentials:
             logger.warning("LOGIN_FAILED ip=%s username=%s", ip, body.username)
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid credentials")
@@ -111,7 +116,8 @@ def create_app(config: Config, deps_factory: DepsFactory | None = None) -> FastA
     ) -> TokenResponse:
         ip = _client_ip(request)
         try:
-            pair = refresh(token=body.refresh_token, deps=deps)
+            with deps.transaction():
+                pair = refresh(token=body.refresh_token, deps=deps)
         except InvalidRefreshToken:
             logger.warning("REFRESH_FAILED ip=%s", ip)
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid refresh token")

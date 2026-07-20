@@ -19,16 +19,17 @@ def test_transfer_moves_balance(bag, alice, bob):
     src = open_account(caller=alice, deps=bag.deps)
     credit(bag, src, 10_000)
     dst = open_account(caller=bob, deps=bag.deps)
+    dst_start = bag.accounts.get(dst.id).balance_minor
 
     transfer(
         from_account_id=src.id,
-        to_account_id=dst.id,
+        to_account_number=dst.account_number,
         amount_minor=2_500,
         caller=alice,
         deps=bag.deps,
     )
     assert bag.accounts.get(src.id).balance_minor == 7_500
-    assert bag.accounts.get(dst.id).balance_minor == 2_500
+    assert bag.accounts.get(dst.id).balance_minor == dst_start + 2_500
 
 
 def test_transfer_produces_verifiable_signature(bag, alice, bob):
@@ -38,7 +39,7 @@ def test_transfer_produces_verifiable_signature(bag, alice, bob):
 
     tx = transfer(
         from_account_id=src.id,
-        to_account_id=dst.id,
+        to_account_number=dst.account_number,
         amount_minor=1_000,
         caller=alice,
         deps=bag.deps,
@@ -56,7 +57,7 @@ def test_tampered_transaction_signature_fails_verification(bag, alice, bob):
 
     tx = transfer(
         from_account_id=src.id,
-        to_account_id=dst.id,
+        to_account_number=dst.account_number,
         amount_minor=1_000,
         caller=alice,
         deps=bag.deps,
@@ -75,7 +76,7 @@ def test_customer_cannot_transfer_from_someone_elses_account(bag, alice, bob):
     with pytest.raises(NotAccountOwner):
         transfer(
             from_account_id=src.id,
-            to_account_id=dst.id,
+            to_account_number=dst.account_number,
             amount_minor=1_000,
             caller=bob,
             deps=bag.deps,
@@ -90,7 +91,7 @@ def test_insufficient_funds_rejected_and_audited(bag, alice, bob):
     with pytest.raises(InsufficientFunds):
         transfer(
             from_account_id=src.id,
-            to_account_id=dst.id,
+            to_account_number=dst.account_number,
             amount_minor=10_000,
             caller=alice,
             deps=bag.deps,
@@ -110,7 +111,7 @@ def test_zero_or_negative_amount_rejected(bag, alice, bob):
         with pytest.raises(InvalidTransfer):
             transfer(
                 from_account_id=src.id,
-                to_account_id=dst.id,
+                to_account_number=dst.account_number,
                 amount_minor=bad,
                 caller=alice,
                 deps=bag.deps,
@@ -123,7 +124,7 @@ def test_self_transfer_rejected(bag, alice):
     with pytest.raises(InvalidTransfer):
         transfer(
             from_account_id=src.id,
-            to_account_id=src.id,
+            to_account_number=src.account_number,
             amount_minor=100,
             caller=alice,
             deps=bag.deps,
@@ -137,7 +138,7 @@ def test_admin_can_transfer_from_any_account(bag, alice, bob, admin):
 
     tx = transfer(
         from_account_id=src.id,
-        to_account_id=dst.id,
+        to_account_number=dst.account_number,
         amount_minor=1_000,
         caller=admin,
         deps=bag.deps,
@@ -151,7 +152,7 @@ def test_transfer_audited(bag, alice, bob):
     dst = open_account(caller=bob, deps=bag.deps)
     tx = transfer(
         from_account_id=src.id,
-        to_account_id=dst.id,
+        to_account_number=dst.account_number,
         amount_minor=1_000,
         caller=alice,
         deps=bag.deps,

@@ -6,6 +6,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from banking_service.application.caller import Caller
 from banking_service.application.deps import BankingDeps
 from banking_service.application.freeze_account import freeze_account
+from banking_service.application.unfreeze_account import unfreeze_account
 from banking_service.application.list_accounts import list_all_accounts
 from banking_service.application.list_transactions import list_transactions
 from banking_service.application.open_account import open_account
@@ -144,6 +145,27 @@ def create_app(config: Config, deps_factory: DepsFactory | None = None) -> FastA
         )
         return _account_response(account)
 
+    @app.post("/accounts/{account_id}/unfreeze", response_model=AccountResponse)
+    def unfreeze_route(
+        account_id: str,
+        request: Request,
+        caller: Caller = Depends(caller_dep),
+        deps: BankingDeps = Depends(deps_factory),
+    ) -> AccountResponse:
+        try:
+            account = unfreeze_account(account_id=account_id, caller=caller, deps=deps)
+        except Forbidden:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "admin only")
+        except AccountNotFound:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "account not found")
+        logger.info(
+            "ACCOUNT_UNFROZEN ip=%s actor=%s account_id=%s",
+            _client_ip(request),
+            caller.user_id,
+            account.id,
+        )
+        return _account_response(account)
+
     @app.post("/transfers", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
     def transfer_route(
         body: TransferRequest,
@@ -154,7 +176,7 @@ def create_app(config: Config, deps_factory: DepsFactory | None = None) -> FastA
         try:
             tx = transfer(
                 from_account_id=body.from_account_id,
-                to_account_id=body.to_account_id,
+                to_account_number=body.to_account_number,
                 amount_minor=body.amount_minor,
                 caller=caller,
                 deps=deps,

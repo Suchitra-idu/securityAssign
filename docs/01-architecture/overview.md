@@ -17,7 +17,8 @@ One page. Who talks to whom, where the keys live, what's in the box.
              │  coraza_waf (OWASP CRS v4, DetectionOnly)
              │  rate_limit (60/min per IP)       │
              │  handle_path /banking/* → banking │
-             │  handle          /*    → auth     │
+             │  handle @auth_paths    → auth     │
+             │  handle /*             → static UI (baked in image)
              └────────┬───────────────┬──────────┘
                       │ HTTPS         │ HTTPS
                       │ (self-signed) │ (self-signed)
@@ -49,6 +50,8 @@ One page. Who talks to whom, where the keys live, what's in the box.
 ```
 
 **fail2ban IDS** tails the auth container's log for `LOGIN_FAILED ip=<host>` / `REFRESH_FAILED ip=<host>` lines — filter and jail configs live in {{ src("deploy/fail2ban/") }}. **Encrypted backup sidecar** ({{ src("deploy/backup/") }}) runs a `pg_dump | age` loop on `BACKUP_INTERVAL_SECONDS`, writes ciphertext-only `.sql.age` files to a named volume, and prunes to `BACKUP_RETENTION`.
+
+The **static UI** ({{ src("ui/") }}) is vanilla HTML / JS / CSS, no build step, baked into the Caddy image at `/srv/ui/`. Caddy's routing block reserves the five explicit auth API paths (`/register /login /refresh /public-key /health`) for reverse proxy to auth, `/banking/*` for banking, and lets every other path fall through to `file_server`. Same-origin with both APIs means no CORS configuration is needed. Access tokens stay in JS memory, refresh tokens sit in `sessionStorage`, and a 401 triggers one automatic refresh-and-retry.
 
 ## The four codebases
 
