@@ -218,10 +218,13 @@ async function loadTransactions(accountId) {
       host.innerHTML = '<div class="empty"><h3>No transactions yet</h3><p>Transfers to and from this account will show up here.</p></div>';
       return;
     }
+    console.log("[demo] transactions for account", accountId, rows);
     for (const tx of rows) {
       const outbound = tx.from_account_id === accountId;
       const row = document.createElement("div");
       row.className = "tx-row " + (outbound ? "tx-out" : "tx-in");
+      row.style.cursor = "pointer";
+      row.title = "Click to log + copy this transaction's id";
       row.innerHTML = `
         <div class="tx-icon">${outbound ? "↑" : "↓"}</div>
         <div class="tx-body">
@@ -232,6 +235,15 @@ async function loadTransactions(accountId) {
           <div class="tx-amount">${outbound ? "-" : "+"}$${money(tx.amount_minor)}</div>
           <div class="tx-sig ${tx.signature_valid ? "ok" : "bad"}">${tx.signature_valid ? "✓ verified" : "✗ invalid"}</div>
         </div>`;
+      row.addEventListener("click", async () => {
+        console.log("[demo] selected transaction", tx);
+        try {
+          await navigator.clipboard.writeText(tx.id);
+          showInfo(`Transaction id copied: ${tx.id}`);
+        } catch {
+          showInfo(`Transaction id: ${tx.id}`);
+        }
+      });
       host.appendChild(row);
     }
   } catch (e) { showError(e.message); }

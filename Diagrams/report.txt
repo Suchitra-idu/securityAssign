@@ -1,0 +1,216 @@
+
+Kandy Innovation Centre,
+National Institute of Business Management.
+
+System Security Evaluation
+
+
+
+
+Secure banking application security analysis
+
+M A S I Malimbada: KIC-BSCCSAI-25.1-P-014
+
+
+Kandy Innovation Centre,
+National Institute of Business Management,
+1095, Kandy – Colombo Rd, Getambe.
+
+
+Abstract 3
+1. Introduction 3
+1.1 Background 3
+1.2 Objectives 3
+1.3 Scope 3
+2. Part 1a, system design diagram 4
+2.1 Overview 4
+2.2 Interfaces 5
+2.3 Component summary 5
+3. Part 1b, security application points and vulnerabilities 6
+4. Part 1c, security mechanisms 8
+4.1 Algorithm level 8
+4.1.1 bcrypt password hashing (C7) 8
+4.1.2 Ed25519 digital signature (C8, C11, C14) 9
+4.1.3 AES-256-GCM authenticated encryption (C13, C16) 9
+4.1.4 SHA-256 hash chain for audit integrity (C17) 9
+4.1.5 age file encryption for backups (C18) 9
+4.2 Protocol level 10
+4.2.1 TLS 1.3 at the edge (C1) and between services and the database (C15) 10
+4.2.2 HTTPS between Caddy and the services (C5) 10
+4.2.3 JWT with EdDSA (C8, C11) 10
+4.2.4 OWASP Core Rule Set over HTTP (C2) 10
+4.2.5 fail2ban filter and jail (C20) 10
+4.3 System level 10
+4.3.1 Network isolation 10
+4.3.2 Reverse proxy as the sole ingress (C1, C2, C3, C4) 11
+4.3.3 Field-encryption boundary at the repository (C13) 11
+4.3.4 Encrypted backup pipeline (C18, C19) 11
+4.3.5 Data-at-rest layout 11
+5. Part 2b, security analysis 13
+5.1 Threat model 13
+5.2 Attack scenarios and mitigations 13
+5.3 Composition analysis 14
+Conclusion 15
+References 15
+
+Abstract
+This is a report on a secure bank application. The application consists of a cryptographic module, authentication service, banking service and a reverse proxy with firewall. To improve security, all of them are deployed as Docker containers. This system consists of 20 security components, including bcrypt password hashing, Ed25519 token signing, hash chained audit log, TLS only internal connections, encrypted backups and an intrusion detection system.
+1. Introduction
+1.1 Background
+Banking applications are considered one of the most security critical applications. This is due to their handling of personal and financial information such as card numbers, balance and transaction history. Not only that, modern applications have the ability to perform monetary transactions as well. This results in banking applications being a major target for all kinds of cyber criminals. Therefore, it is highly important to ensure proper security for banking applications.
+1.2 Objectives
+The main objective of this report is to design the architecture for a secure banking application and evaluate it. Specific objectives are,
+·	O1. Present a system design diagram of the banking application (Task 1a). 
+·	O2. Annotate the diagram with every point at which a security control is applied, and for each point, identify the vulnerability that would arise if the control were absent (Task 1b).
+·	O3. Describe each control at the algorithm, protocol, and system level (Task 1c). 
+·	O4. Provide a critical security analysis of the composed system, including attack scenarios and residual risks (Task 2b).
+1.3 Scope
+The application is minimal when it comes to features. This is due to the fact that the assignment is focused on security and not breadth of functionality. Therefore, the designed architecture and implementation will be highly focused on depth of security. Supported features are user registration, login, opening an account, transferring funds, listing transactions, and an administrator only freeze and unfreeze workflow. 
+2. Part 1a, system design diagram
+2.1 Overview
+To deploy the system, five containers orchestrated by Docker Compose (Docker Inc., 2024) had been used, which are a reverse proxy (Caddy), auth service, banking service, PostgreSQL server and a backup sidecar. We also use a fail2ban process to observe the logs. In this system, only the reverse proxy is published to the host network while other containers communicate from an internal Docker network. 
+
+
+
+
+
+
+
+
+
+
+
+
+Figure 1. System topology, showing the two Docker networks, five containers and key placement.
+2.2 Interfaces
+The below table lists every interface between components, and all traffic that leaves a container is encrypted.
+From	To	Transport	Purpose
+Browser or API client	Caddy	HTTPS (TLS 1.3)	User traffic
+Caddy	auth_service	HTTPS (TLS, self-signed)	Reverse-proxy hop
+Caddy	banking_service	HTTPS (TLS, self-signed)	Reverse-proxy hop
+auth_service	PostgreSQL (auth DB)	TLS 1.3	Application queries
+banking_service	PostgreSQL (banking DB)	TLS 1.3	Application queries
+backup sidecar	PostgreSQL	TLS 1.3	pg_dump reads
+backup sidecar	Named volume backup_data	Local	Ciphertext writes
+fail2ban	Docker log stream (auth)	Local read-only	IDS
+Table 1. Runtime interfaces between components.
+2.3 Component summary
+Caddy: A reverse proxy with Coraza WAF and rate limiting. For each request, it filters them through the OWASP Core Rule Set, rate limits by client ID, serves the static UI and acts as a reverse proxy to the backend.
+auth_service: Uses FastAPI with uvicorn. It handles identity related things, holding the Ed25519 private key that is used to sign JWT tokens. The public key is published on GET /public-key.
+
+banking_service: Same tech stack as the auth service. It holds the auth public key, which is used to verify the tokens. But due to only holding the public key, it is incapable of minting them. This layer also uses Ed25519 for transaction signing and AES-256-GCM for encrypting the database entries.
+PostgreSQL: It consists of two logical databases, which are auth and banking. They are hosted in the same instance but isolated by the standard PostgreSQL role and grant model. The pg_hba.conf file allows only hostssl connection rows. Therefore, any client that attempts a plaintext connection is refused.
+Backup sidecar: It runs pg_dump, which is piped through the age file-encryption tool (Valsorda, 2024) into a named volume. This results in a secure, encrypted backup file.
+3. Part 1b, security application points and vulnerabilities
+In this system, there are twenty distinct security control points. They are there to defend against various types of security attack. The controls are selected to cover the confidentiality, integrity and availability properties defined in ISO/IEC 27000:2018 (International Organization for Standardization, 2018).
+Figure 2. The same topology as Figure 1, annotated with the twenty security control points enforced in the system.
+Table 2 is the inventory of all the security controls. Each row is a distinct mechanism enforced at a distinct point in the system.
+#	Control point	Where applied	Vulnerability without it
+C1	TLS 1.3 termination	Caddy edge	Passive eavesdropping, cookie theft, man-in-the-middle
+C2	OWASP Coraza WAF running CRS 	Caddy edge	SQL injection, cross-site scripting, local file inclusion, generic remote code execution attempts
+C3	Per-IP rate limit	Caddy edge	Credential stuffing, brute-force login, application-layer denial of service
+C4	Path allow-list router (only five explicit auth paths, /banking/*, and the static UI)	Caddy	Route smuggling, accidental exposure of debug endpoints
+C5	HTTPS between Caddy and each application container	Reverse-proxy hop	Container-to-container traffic sniffing, service impersonation on the internal network
+C6	Pydantic input validation with extra="forbid" on every request body	Both application services	Parameter smuggling, oversize payloads, malformed JSON
+C7	bcrypt password hashing	auth login	Password disclosure from a database dump, user enumeration via response-time analysis
+C8	Ed25519 JWT signing	auth login and refresh	Token forgery, algorithm-confusion attacks
+C9	Refresh tokens stored as SHA-256 hashes	auth refresh	Refresh-token replay after a database read, long-lived session hijack
+C10	Two-connection audit-durability pattern	Both application 	Loss of audit evidence when the main transaction rolls back
+C11	JWT verification against the auth public key held by banking	banking edge	Token forgery by a compromised banking container, loss of asymmetric trust
+C12	RBAC gates	banking application layer	Cross-customer data disclosure, unauthorised freeze
+C13	AES-256-GCM field encryption of account_number, balance_minor, and card_number	banking accounts repository	Disclosure of account numbers, balances, and card numbers from a database dump or backup
+C14	Ed25519 signing of every transfer over a canonical JSON payload, with re-verification at read time	banking transfer and list flows	Tampering with transactions.amount_minor directly in the database
+C15	hostssl-only pg_hba.conf and sslmode=verify-ca on every client	Every database connection	Downgrade to plaintext transport, database spoofing
+C16	Column-level ciphertext for the three account columns	accounts table	The at-rest side of C13
+C17	SHA-256 hash-chained audit log	Both audit_log tables	Silent editing or deletion of past audit events
+C18	'age' encryption of backups	backup sidecar	Backup theft leading to full data disclosure
+C19	pg_dump piped in-memory into age	backup sidecar	Plaintext residue on disk after a crash between dump and encrypt
+C20	fail2ban IDS jail watching LOGIN_FAILED and REFRESH_FAILED on auth stdout	Host	Slow-and-low brute force that stays under the C3 threshold
+Table 2. An inventory of the 20 security controls, their locations and the vulnerability each mitigates.
+By observing Table 2, it is clear that most of the vulnerabilities are covered by multiple defences. As an example, password disclosure is prevented at the algorithm level by bcrypt hashing. But it is also prevented in transit by TLS 1.3, and at the backup layer by age encryption. This is highly important because, even if one of them is compromised, attackers are not able to obtain the plaintext password easily.
+4. Part 1c, security mechanisms
+In this section, we will be describing the control points. Control points are categorised into algorithm level, protocol level and system level, where each control is described in its underlying primitive, and how it is applied.
+4.1 Algorithm level
+4.1.1 bcrypt password hashing (C7)
+bcrypt is an adaptive password-hashing function that is built around a modified Blowfish key schedule (Provos & Mazières, 1999). In here, it takes a cost factor of 12 and produces a 60 character output that includes cost, salt and the hash. A high work factor will slow down offline guessing and a random salt prevents rainbow tables.
+4.1.2 Ed25519 digital signature (C8, C11, C14)
+The Ed25519 algorithm is standardised in RFC 8032 (Josefsson & Liusvaara, 2017) and was originally described by Bernstein et al. (2012). This algorithm produces 64-byte signatures over messages and verification only requires a few microseconds. Our system uses this algorithm in two places.
+1.	Authentication of tokens. The auth service uses Ed25519 to sign JWTs. The banking service verifies them using the public key. The alg header is fixed to EdDSA to prevent alg=none and RS256-to-HS256 confusion attacks.
+2.	Transaction non-repudiation. The banking service signs each transaction using this algorithm. This ensures the authenticity of transactions because any tampering will result in the signature becoming invalid for the tampered transaction. The payload is serialised using the JSON Canonicalization Scheme. Without canonicalisation, a difference in key ordering or number formatting between the write path and the read path would cause a valid signature to fail verification.
+4.1.3 AES-256-GCM authenticated encryption (C13, C16)
+This algorithm is standardised by NIST in Special Publication 800-38D (Dworkin, 2007). The ciphertext is the same length as the plaintext, and the authentication tag is 16 bytes. Due to every write producing a new nonce, two writes of the same plaintext result in different ciphertexts. This is especially useful for a banking application that stores balances frequently, where an attacker could otherwise infer which accounts hold the same balance.
+4.1.4 SHA-256 hash chain for audit integrity (C17)
+In here, each audit row stores event, prev_hash, and hash. prev_hash for the first row is a fixed 32-byte genesis constant and verification recomputes the chain from the genesis forward. Any mismatch between the two hashes is found, which means this hash or an ancestor hash had been modified. 
+4.1.5 age file encryption for backups (C18)
+To securely encrypt the backup, the age file encryption tool is used. It uses X25519 for key agreement and ChaCha20-Poly1305 for symmetric AEAD (Valsorda, 2024). Due to the backup sidecar only having the public key, it cannot decrypt its own output. Therefore, even if the backup container is compromised, an attacker cannot decrypt backups.
+4.2 Protocol level
+4.2.1 TLS 1.3 at the edge (C1) and between services and the database (C15)
+It is the current version of the Transport Layer Security protocol (Rescorla, 2018). Compared to its predecessors, TLS 1.3 has faster handshakes, enhanced security and mandatory forward secrecy. In this system, TLS 1.3 is enforced at every network hop that leaves a container. This prevents potential internal security breaches, unauthorised data tampering, and visibility gaps.
+4.2.2 HTTPS between Caddy and the services (C5)
+Caddy encrypts every upstream request over HTTPS. It prevents plaintext leaks and protects sensitive headers. An attacker who even obtains code execution inside a co-tenant container cannot observe plaintext application traffic between Caddy and the two application services.
+4.2.3 JWT with EdDSA (C8, C11)
+The system uses JWTs (Jones et al., 2015) with the EdDSA algorithm as the access token. The claim set has the user identifier, role, issued at and expiry. This prevents any potential token forgery, replay attacks, and privilege escalation. Also, due to using EdDSA, it prevents the risk of side channel leaks and increases performance. 
+4.2.4 OWASP Core Rule Set over HTTP (C2)
+For the firewall, we use Coraza, which is an open-source WAF engine that is compatible with the OWASP ModSecurity rule syntax. It parses incoming requests and evaluates them against the OWASP CRS rule set (OWASP, 2024). It can detect attacks such as SQL injection, cross site scripting and RCE attempts.
+4.2.5 fail2ban filter and jail (C20)
+A fail2ban filter is developed to prevent things such as brute force attacks. It tracks 'LOGIN_FAILED' and 'REFRESH_FAILED'. If a specific IP address is resulting in too many login or refresh failures within a given time frame, the fail2ban jail issues an iptables ban against the source IP.
+4.3 System level
+4.3.1 Network isolation
+Docker Compose is instructed to attach the auth, banking, PostgreSQL, and backup containers to a network that is declared with the flag internal: true (Docker Inc., 2024). In response, Docker attaches those containers to a Linux bridge that has no default route toward the host. Therefore, even if an attacker achieves RCE inside a backend container, they cannot exfiltrate data over the Internet directly.
+4.3.2 Reverse proxy as the sole ingress (C1, C2, C3, C4)
+The container with Caddy is the only container that has a published host port. This results in zero direct backend exposure and exploitation, makes preventing DDoS attacks way simpler and prevents configuration and routing leaks. Therefore, even if a new debug endpoint is added to the auth service by mistake, it will not be reachable from the Internet unless it is also added to the router.
+4.3.3 Field-encryption boundary at the repository (C13)
+In the whole system, PostgresAccountRepository is the only module in the banking service that ever holds both the plaintext and the ciphertext form of an account row. Every layer above this only sees plaintext while every layer below this only sees ciphertext. This provides a clear cryptographic boundary, prevents accidental plaintext leakage into storage and lowers the attack surface. 
+4.3.4 Encrypted backup pipeline (C18, C19)
+The backup sidecar runs the following loop, pg_dump ... | age -r <recipient> > /backups/<db>-<ts>.sql.age. Due to the usage of the '-r' flag, it selects the public key from the sidecar's environment. But the private key is not available in the age sidecar. Therefore, even if an attacker compromises the sidecar, they cannot decrypt any backups. Also, due to the use of a Unix pipe, plaintext never gets stored in the file system, therefore removing the risk of having any plaintext residue on the disk.
+4.3.5 Data-at-rest layout
+The below figure shows how data is stored in both layout and encrypted backup. As you can see, in the accounts table three columns are stored as AES-256-GCM ciphertext. In the users table, the password_hash column is a bcrypt output. In the refresh_tokens table, the token_hash column is a SHA-256 hex digest. The two audit_log tables store plaintext JSONB, but their integrity is protected by the chained hash column.
+
+
+
+Figure 3. Data-at-rest map. Every sensitive value on disk is either bcrypt-hashed, SHA-256-hashed, AES-256-GCM-encrypted, or Ed25519-signed.
+5. Part 2b, security analysis
+This section is about analysing the security of the proposed system. This section includes a threat model (Section 5.1), a set of attack scenarios (Section 5.2), and a composition analysis (Section 5.3).
+5.1 Threat model
+Threats in this section are drawn from the OWASP Top 10 for web applications (OWASP, 2021a), the OWASP ASVS v4.0.3 categories (OWASP, 2021b), and the STRIDE catalogue (Shostack, 2014). All the adversaries considered are listed below.
+·	Network adversary: An attacker on the network path between the browser and Caddy. This adversary can passively observe or actively modify traffic in transit.
+·	Malicious client: An authenticated client that holds a valid access token and attempts to reach data outside the granted scope.
+·	Compromised container: An attacker who has achieved code execution inside one of the backend containers.
+·	Insider with database read: An operations engineer with production database credentials.
+·	Insider with backup access: For example, an operations engineer with credentials to the storage bucket that holds backup files.
+5.2 Attack scenarios and mitigations
+S1: Interception of credentials in transit. TLS 1.3 with a modern AEAD cipher suite is used at the edge. Therefore, past traffic remains confidential even if a private key is later compromised.
+S2: SQL injection at any endpoint. Multiple security components are used to mitigate this. The first is the parameterisation of every SQL statement through psycopg3. The second is Pydantic input validation. The third defence against these types of attack is the web application firewall (WAF), which matches classic SQL injection patterns via CRS rule 942100 and above.
+S3: Password disclosure from a database dump. All the passwords are hashed with bcrypt. And also, the input-validation layer enforces a 12-character password minimum, making offline guessing of the passwords infeasible.
+S4: Refresh-token reuse from a database dump. The database dump only contains SHA-256 hashes of the refresh tokens. These hashes cannot be used at the refresh endpoint. This is because the endpoint hashes the incoming token and compares it to the stored hash. And also, every legitimate use of a refresh token rotates it.
+S5: Cross-customer data access. The function require_owner_or_admin(caller, account) is called at the entry of every use case that reads or mutates an account. Therefore, a customer who sends GET /accounts/{some_other_customers_uuid} is rejected with HTTP 403 by the application before any data leaves the database.
+S6: Account-number, balance, or card-number disclosure from a database dump. These three account columns are stored as AES-256-GCM ciphertext. Therefore, an attacker that has access to the banking database only sees ciphertext. For backup files, they are encrypted with 'age'. An attacker with access to backup files will be required to break two encryptions in order to read the content.
+S7: Tampering with, or silent deletion of, audit events. A hash chain is implemented to prevent these types of attack. The hash chain hashes its previous record's hash, making it a function of every prior event. Therefore, editing any past event breaks every subsequent hash.
+S8: Denial of service attacks. The Caddy rate limit is 300 requests per minute per IP. This ceiling accommodates a real user's session while catching bots that fire hundreds of guesses per second.
+5.3 Composition analysis
+Our system is developed in a manner that the composed system is more than the sum of its individual controls. As an example, even if a single container gets compromised, the damage is highly contained within that system and the attacker does not get full access to the whole system.
+·	Compromise of PostgreSQL. An attacker who can read every row obtains bcrypt hashes, SHA-256 refresh hashes, AES-256-GCM ciphertext for the sensitive account columns, and Ed25519 signature bytes. None of these values are directly usable.
+·	Compromise of auth_service. An attacker who obtains code execution inside auth gains the JWT signing private key. Therefore, the attacker can mint access tokens for any user. However, the attacker does not gain access to the account contents. This is because the field encryption key is in banking's memory, not in auth's memory.
+·	Compromise of banking_service. An attacker who obtains code execution inside banking gains the field key and the transaction-signing key. Therefore, the attacker can decrypt account rows and produce valid-looking signed transactions on the compromised container. However, the attacker cannot mint JWTs. Therefore, the attacker must already possess a valid access token or persuade a legitimate client to send one.
+·	Compromise of the backup sidecar. An attacker who obtains code execution inside the sidecar gains only the age recipient key. This key is a public key. Therefore, no plaintext data is disclosed by this compromise.
+The pattern described above is an instance of the principle of least authority, which was first stated by Saltzer and Schroeder (1975). Each container only holds the minimum authority necessary to perform its role, and no component holds authority that duplicates that of another component. This makes the banking system hardened against both internal and external attackers.
+Conclusion
+This report analyses and evaluates the security of the banking application. The evaluation was structured according to the assignment brief, where it includes a design diagram (Task 1a), its security components and vulnerability analysis (Task 1b), a detailed description of all its security mechanisms (Task 1c) and a critical security analysis of the composed system (Task 2b).
+In this system, we designed twenty distinct security controls and evaluated them, spanning the algorithm layer, protocol layer, and system layer. The main finding from this report is the fact that hardened security arises from the use of clearly defined, isolated containers. As an example, in this system no single container holds enough key material to defeat every layer simultaneously, reducing the blast radius in case of an attack.
+References
+Bernstein, D. J., Duif, N., Lange, T., Schwabe, P., & Yang, B.-Y. (2012). High-speed high-security signatures. Journal of Cryptographic Engineering, 2(2), 77–89. https://doi.org/10.1007/s13389-012-0027-1
+Docker Inc. (2024). Docker Compose networking [Documentation]. https://docs.docker.com/compose/networking/
+Dworkin, M. (2007). Recommendation for block cipher modes of operation: Galois/Counter Mode (GCM) and GMAC (NIST Special Publication 800-38D). National Institute of Standards and Technology. https://doi.org/10.6028/NIST.SP.800-38D
+International Organization for Standardization. (2018). Information technology — Security techniques — Information security management systems — Overview and vocabulary (ISO/IEC 27000:2018). ISO.
+Jones, M., Bradley, J., & Sakimura, N. (2015). JSON Web Token (JWT) (RFC 7519). Internet Engineering Task Force. https://doi.org/10.17487/RFC7519
+Josefsson, S., & Liusvaara, I. (2017). Edwards-Curve Digital Signature Algorithm (EdDSA) (RFC 8032). Internet Engineering Task Force. https://doi.org/10.17487/RFC8032
+OWASP. (2021a). OWASP Top 10: 2021. The OWASP Foundation. https://owasp.org/Top10/
+OWASP. (2021b). Application Security Verification Standard v4.0.3. The OWASP Foundation. https://owasp.org/www-project-application-security-verification-standard/
+OWASP. (2023). Password storage cheat sheet. https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
+OWASP. (2026). OWASP CRS documentation. https://coreruleset.org/
+Provos, N., & Mazières, D. (1999). A future-adaptable password scheme. Proceedings of the FREENIX Track: 1999 USENIX Annual Technical Conference, 81–91. USENIX Association.
+Rescorla, E. (2018). The Transport Layer Security (TLS) Protocol Version 1.3 (RFC 8446). Internet Engineering Task Force. https://doi.org/10.17487/RFC8446
+Saltzer, J. H., & Schroeder, M. D. (1975). The protection of information in computer systems. Proceedings of the IEEE, 63(9), 1278–1308. https://doi.org/10.1109/PROC.1975.9939
+Shostack, A. (2014). Threat modeling: Designing for security. Wiley.
+Valsorda, F. (2024). age: A simple, modern and secure file encryption tool. https://age-encryption.org/
+
